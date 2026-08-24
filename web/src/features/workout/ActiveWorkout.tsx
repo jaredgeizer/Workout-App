@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useLiveQuery } from "dexie-react-hooks";
 import {
   addExerciseToSession,
+  addSetToPerformance,
   discardWorkout,
   finishWorkout,
   loadSessionDetail,
@@ -17,6 +18,8 @@ import { RestTimer } from "./RestTimer";
 import { unlockAudio } from "./beep";
 
 const REST_DURATION_MS = 90_000;
+
+type SetStatus = "completed" | "active" | "pending";
 
 interface Props {
   sessionId: string;
@@ -50,13 +53,18 @@ export function ActiveWorkout({ sessionId, onDone }: Props) {
     onDone();
   }
 
-  async function handleSetToggle(set: SetEntry) {
+  async function handleLogSet(set: SetEntry) {
     unlockAudio();
-    const nextCompleted = !set.isCompleted;
-    await updateSet(set.id, { isCompleted: nextCompleted });
-    if (nextCompleted) {
-      setRestEndsAt(Date.now() + REST_DURATION_MS);
-    }
+    await updateSet(set.id, { isCompleted: true });
+    setRestEndsAt(Date.now() + REST_DURATION_MS);
+  }
+
+  async function handleUndoSet(set: SetEntry) {
+    await updateSet(set.id, { isCompleted: false });
+  }
+
+  async function handleAddSet(performanceId: string) {
+    await addSetToPerformance(performanceId);
   }
 
   async function handleAddExercise(exercise: Exercise) {
@@ -101,6 +109,11 @@ export function ActiveWorkout({ sessionId, onDone }: Props) {
         <div className="flex flex-col gap-4">
           {detail.performances.map((p) => {
             const canSwap = p.sets.every((set) => !set.isCompleted);
+            const sortedSets = [...p.sets].sort((a, b) => a.setNumber - b.setNumber);
+            const activeIndex = sortedSets.findIndex((set) => !set.isCompleted);
+            const isExerciseLogged = activeIndex === -1;
+            const isFinalSet = activeIndex === sortedSets.length - 1;
+
             return (
               <div key={p.performance.id} className="rounded-xl bg-slate-800 p-3">
                 <div className="mb-2 flex items-center justify-between">
@@ -114,10 +127,39 @@ export function ActiveWorkout({ sessionId, onDone }: Props) {
                     </button>
                   )}
                 </div>
+
                 <div className="flex flex-col gap-2">
-                  {p.sets.map((set) => (
-                    <SetRow key={set.id} set={set} onToggleComplete={() => void handleSetToggle(set)} />
-                  ))}
+                  {sortedSets.map((set, index) => {
+                    // Derived from each set's own isCompleted rather than its position, so
+                    // undoing an earlier set while a later one is still logged (a "hole" in
+                    // the sequence) still shows the later set as completed, not pending.
+                    const status: SetStatus = set.isCompleted ? "completed" : index === activeIndex ? "active" : "pending";
+                    return <SetRow key={set.id} set={set} status={status} onUndo={() => void handleUndoSet(set)} />;
+                  })}
+                </div>
+
+                <div className="mt-3 flex items-center gap-3">
+                  <button
+                    onClick={() => void handleAddSet(p.performance.id)}
+                    className="text-xs font-medium text-sky-400 active:text-sky-300"
+                  >
+                    + Add Set
+                  </button>
+
+                  <div className="ml-auto">
+                    {isExerciseLogged ? (
+                      <span className="rounded-lg bg-emerald-500/15 px-3 py-1.5 text-sm font-medium text-emerald-400">
+                        ✓ Exercise Complete
+                      </span>
+                    ) : (
+                      <button
+                        onClick={() => void handleLogSet(sortedSets[activeIndex])}
+                        className="rounded-lg bg-sky-500 px-4 py-1.5 text-sm font-semibold text-slate-950 active:bg-sky-400"
+                      >
+                        {isFinalSet ? "Log Exercise" : "Log Set"}
+                      </button>
+                    )}
+                  </div>
                 </div>
               </div>
             );
@@ -176,10 +218,12 @@ function formatElapsed(totalSeconds: number): string {
   return `${minutes}:${String(seconds).padStart(2, "0")}`;
 }
 
-function SetRow({ set, onToggleComplete }: { set: SetEntry; onToggleComplete: () => void }) {
+function SetRow({ set, status, onUndo }: { set: SetEntry; status: SetStatus; onUndo: () => void }) {
   return (
-    <div className="flex items-center gap-2">
-      <span className="w-10 text-sm text-slate-400">Set {set.setNumber}</span>
+    <div className={`flex items-center gap-2 ${status === "pending" ? "opacity-40" : "opacity-100"}`}>
+      <span className={`w-10 text-sm ${status === "completed" ? "text-emerald-400" : "text-slate-400"}`}>
+        Set {set.setNumber}
+      </span>
 
       <input
         type="number"
@@ -201,15 +245,17 @@ function SetRow({ set, onToggleComplete }: { set: SetEntry; onToggleComplete: ()
       />
       <span className="text-xs text-slate-500">reps</span>
 
-      <button
-        onClick={onToggleComplete}
-        className={`ml-auto flex h-8 w-8 items-center justify-center rounded-full text-lg ${
-          set.isCompleted ? "bg-emerald-500 text-slate-950" : "bg-slate-700 text-slate-400"
-        }`}
-        aria-label={set.isCompleted ? "Mark incomplete" : "Mark complete"}
-      >
-        ✓
-      </button>
+      {status === "completed" ? (
+        <button
+          onClick={onUndo}
+          aria-label="Mark incomplete"
+          className="ml-auto flex h-8 w-8 items-center justify-center rounded-full bg-emerald-500 text-lg text-slate-950"
+        >
+          ✓
+        </button>
+      ) : (
+        <span className="ml-auto w-8" />
+      )}
     </div>
   );
 }

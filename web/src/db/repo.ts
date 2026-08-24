@@ -155,6 +155,21 @@ export async function swapExerciseInPerformance(performanceId: string, newExerci
   });
 }
 
+/** Appends one more set to an in-progress exercise, pre-filled from the current last set. */
+export async function addSetToPerformance(performanceId: string): Promise<void> {
+  const sets = await db.sets.where("performanceId").equals(performanceId).toArray();
+  const lastSet = sets.length > 0 ? sets.reduce((a, b) => (a.setNumber > b.setNumber ? a : b)) : undefined;
+
+  await db.sets.add({
+    id: newId(),
+    performanceId,
+    setNumber: (lastSet?.setNumber ?? 0) + 1,
+    weight: lastSet?.weight ?? 0,
+    reps: lastSet?.reps ?? 10,
+    isCompleted: false,
+  });
+}
+
 export async function finishWorkout(sessionId: string, duration: number): Promise<void> {
   await db.sessions.update(sessionId, { duration, isCompleted: true });
   await applyProgressionIfApplicable(sessionId);
