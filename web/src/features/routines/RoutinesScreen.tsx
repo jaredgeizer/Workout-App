@@ -5,15 +5,18 @@ import { loadPlannedExercisesFromRoutine, type PlannedExercise } from "../../db/
 import { RoutineList } from "./RoutineList";
 import { RoutineDetail } from "./RoutineDetail";
 import { BuildWorkout } from "../workout/BuildWorkout";
-import { ActiveWorkout } from "../workout/ActiveWorkout";
+import { FullScreenOverlay } from "../../components/FullScreenOverlay";
 
 type Stage =
   | { kind: "list" }
   | { kind: "detail"; routineId: string }
-  | { kind: "building"; routineId: string; initialPlan: PlannedExercise[] }
-  | { kind: "active"; sessionId: string };
+  | { kind: "building"; routineId: string; initialPlan: PlannedExercise[] };
 
-export function RoutinesScreen() {
+interface Props {
+  onWorkoutStarted: (sessionId: string) => void;
+}
+
+export function RoutinesScreen({ onWorkoutStarted }: Props) {
   const routines = useLiveQuery(() => db.routines.orderBy("createdAt").toArray(), []) ?? [];
   const [stage, setStage] = useState<Stage>({ kind: "list" });
 
@@ -29,16 +32,8 @@ export function RoutinesScreen() {
           initialPlan={stage.initialPlan}
           routineId={stage.routineId}
           onCancel={() => setStage({ kind: "detail", routineId: stage.routineId })}
-          onStarted={(sessionId) => setStage({ kind: "active", sessionId })}
+          onStarted={onWorkoutStarted}
         />
-      </FullScreenOverlay>
-    );
-  }
-
-  if (stage.kind === "active") {
-    return (
-      <FullScreenOverlay>
-        <ActiveWorkout sessionId={stage.sessionId} onDone={() => setStage({ kind: "list" })} />
       </FullScreenOverlay>
     );
   }
@@ -54,8 +49,4 @@ export function RoutinesScreen() {
   }
 
   return <RoutineList routines={routines} onSelect={(routineId) => setStage({ kind: "detail", routineId })} />;
-}
-
-function FullScreenOverlay({ children }: { children: React.ReactNode }) {
-  return <div className="fixed inset-0 z-40 flex flex-col overflow-y-auto bg-slate-900">{children}</div>;
 }

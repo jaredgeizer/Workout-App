@@ -1,16 +1,19 @@
 import { useState } from "react";
 import { BuildWorkout } from "./BuildWorkout";
-import { ActiveWorkout } from "./ActiveWorkout";
 import { GenerateWorkoutForm } from "./GenerateWorkoutForm";
+import { FullScreenOverlay } from "../../components/FullScreenOverlay";
 import type { PlannedExercise } from "../../db/repo";
 
 type Stage =
   | { kind: "home" }
   | { kind: "generating" }
-  | { kind: "building"; initialPlan?: PlannedExercise[]; initialGymId?: string }
-  | { kind: "active"; sessionId: string };
+  | { kind: "building"; initialPlan?: PlannedExercise[]; initialGymId?: string };
 
-export function WorkoutScreen() {
+interface Props {
+  onWorkoutStarted: (sessionId: string) => void;
+}
+
+export function WorkoutScreen({ onWorkoutStarted }: Props) {
   const [stage, setStage] = useState<Stage>({ kind: "home" });
 
   if (stage.kind === "generating") {
@@ -29,16 +32,8 @@ export function WorkoutScreen() {
           initialPlan={stage.initialPlan}
           initialGymId={stage.initialGymId}
           onCancel={() => setStage({ kind: "home" })}
-          onStarted={(sessionId) => setStage({ kind: "active", sessionId })}
+          onStarted={onWorkoutStarted}
         />
-      </FullScreenOverlay>
-    );
-  }
-
-  if (stage.kind === "active") {
-    return (
-      <FullScreenOverlay>
-        <ActiveWorkout sessionId={stage.sessionId} onDone={() => setStage({ kind: "home" })} />
       </FullScreenOverlay>
     );
   }
@@ -61,8 +56,4 @@ export function WorkoutScreen() {
       </button>
     </div>
   );
-}
-
-function FullScreenOverlay({ children }: { children: React.ReactNode }) {
-  return <div className="fixed inset-0 z-40 flex flex-col overflow-y-auto bg-slate-900">{children}</div>;
 }

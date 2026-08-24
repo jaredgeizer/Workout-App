@@ -101,6 +101,18 @@ export async function startWorkout(
   return sessionId;
 }
 
+/**
+ * The session currently in progress, if any. Used to resume straight into ActiveWorkout
+ * after a reload — e.g. iOS discarding a backgrounded tab mid-workout — since the row
+ * itself (and everything logged against it) is already durably in IndexedDB regardless
+ * of what any in-memory UI state remembers.
+ */
+export async function findActiveSession(): Promise<WorkoutSession | undefined> {
+  const incomplete = await db.sessions.filter((session) => !session.isCompleted).toArray();
+  if (incomplete.length === 0) return undefined;
+  return incomplete.sort((a, b) => b.date.localeCompare(a.date))[0];
+}
+
 export async function updateSet(setId: string, changes: Partial<Pick<SetEntry, "weight" | "reps" | "isCompleted" | "rpe">>): Promise<void> {
   await db.sets.update(setId, changes);
 }
