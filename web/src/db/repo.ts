@@ -105,6 +105,44 @@ export async function updateSet(setId: string, changes: Partial<Pick<SetEntry, "
   await db.sets.update(setId, changes);
 }
 
+/** Appends a new exercise to an already-started session, e.g. from the "+ Add Exercise" button mid-workout. */
+export async function addExerciseToSession(
+  sessionId: string,
+  exercise: Exercise,
+  targetSets = 3,
+  targetReps = 10,
+): Promise<void> {
+  const existing = await db.performances.where("sessionId").equals(sessionId).toArray();
+  const performanceId = newId();
+  const performance: ExercisePerformance = {
+    id: performanceId,
+    sessionId,
+    exerciseId: exercise.id,
+    orderIndex: existing.length,
+  };
+  const sets: SetEntry[] = [];
+  for (let setNumber = 1; setNumber <= targetSets; setNumber++) {
+    sets.push({ id: newId(), performanceId, setNumber, weight: 0, reps: targetReps, isCompleted: false });
+  }
+
+  await db.transaction("rw", db.performances, db.sets, async () => {
+    await db.performances.add(performance);
+    await db.sets.bulkAdd(sets);
+  });
+}
+
+/**
+ * Replaces the exercise in an existing performance with a different one — only meaningful
+ * before any of its sets are logged, since the old exercise's weight doesn't carry over.
+ */
+export async function swapExerciseInPerformance(performanceId: string, newExercise: Exercise): Promise<void> {
+  await db.transaction("rw", db.performances, db.sets, async () => {
+    await db.performances.update(performanceId, { exerciseId: newExercise.id });
+    const sets = await db.sets.where("performanceId").equals(performanceId).toArray();
+    await Promise.all(sets.map((set) => db.sets.update(set.id, { weight: 0 })));
+  });
+}
+
 export async function finishWorkout(sessionId: string, duration: number): Promise<void> {
   await db.sessions.update(sessionId, { duration, isCompleted: true });
   await applyProgressionIfApplicable(sessionId);
