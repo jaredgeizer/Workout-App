@@ -5,6 +5,7 @@ export interface WorkoutSession {
   notes?: string;
   isCompleted: boolean;
   gymId?: string;
+  routineId?: string;
 }
 
 export interface ExercisePerformance {

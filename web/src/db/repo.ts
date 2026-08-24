@@ -2,8 +2,10 @@ import { db, newId } from "./schema";
 import type { Equipment, EquipmentCategory } from "../types/equipment";
 import type { Exercise } from "../types/exercise";
 import type { Gym } from "../types/gym";
+import type { Routine, RoutineExerciseEntry } from "../types/routine";
 import type { ExercisePerformance, SetEntry, WorkoutSession } from "../types/workoutSession";
 import type { MuscleGroup } from "../types/muscleGroup";
+import { nextTarget } from "../domain/progression";
 
 // ---- Equipment ----
 
@@ -45,13 +47,18 @@ export interface PlannedExercise {
   exercise: Exercise;
   targetSets: number;
   targetReps: number;
+  targetWeight?: number;
 }
 
 /**
  * Creates a session with one ExercisePerformance per planned exercise and
  * pre-populated (uncompleted) SetEntry rows for the target set count.
  */
-export async function startWorkout(gymId: string | undefined, plan: PlannedExercise[]): Promise<string> {
+export async function startWorkout(
+  gymId: string | undefined,
+  plan: PlannedExercise[],
+  routineId?: string,
+): Promise<string> {
   const sessionId = newId();
   const session: WorkoutSession = {
     id: sessionId,
@@ -59,6 +66,7 @@ export async function startWorkout(gymId: string | undefined, plan: PlannedExerc
     duration: 0,
     isCompleted: false,
     gymId,
+    routineId,
   };
 
   const performances: ExercisePerformance[] = [];
@@ -77,7 +85,7 @@ export async function startWorkout(gymId: string | undefined, plan: PlannedExerc
         id: newId(),
         performanceId,
         setNumber,
-        weight: 0,
+        weight: planned.targetWeight ?? 0,
         reps: planned.targetReps,
         isCompleted: false,
       });
@@ -99,6 +107,53 @@ export async function updateSet(setId: string, changes: Partial<Pick<SetEntry, "
 
 export async function finishWorkout(sessionId: string, duration: number): Promise<void> {
   await db.sessions.update(sessionId, { duration, isCompleted: true });
+  await applyProgressionIfApplicable(sessionId);
+}
+
+/**
+ * If this session was started from a routine with smart-adjust on, updates that
+ * routine's stored weight/rep target per exercise based on what was actually logged.
+ */
+async function applyProgressionIfApplicable(sessionId: string): Promise<void> {
+  const session = await db.sessions.get(sessionId);
+  if (!session?.routineId) return;
+
+  const routine = await db.routines.get(session.routineId);
+  if (!routine || !routine.smartAdjustEnabled) return;
+
+  const performances = await db.performances.where("sessionId").equals(sessionId).toArray();
+  const performanceIds = performances.map((p) => p.id);
+  const allSets =
+    performanceIds.length > 0 ? await db.sets.where("performanceId").anyOf(performanceIds).toArray() : [];
+
+  const setsByExerciseId = new Map<string, SetEntry[]>();
+  for (const performance of performances) {
+    const sets = allSets.filter((s) => s.performanceId === performance.id);
+    setsByExerciseId.set(performance.exerciseId, sets);
+  }
+
+  const updatedExercises: RoutineExerciseEntry[] = routine.exercises.map((entry) => {
+    const loggedSets = setsByExerciseId.get(entry.exerciseId);
+    if (!loggedSets || loggedSets.length === 0) return entry;
+
+    // Progress from the weight actually used this session, not the routine's stale stored
+    // weight, since the user may have adjusted it live during the workout.
+    const weightUsed = Math.max(...loggedSets.map((set) => set.weight));
+
+    const next = nextTarget(
+      loggedSets.map((set) => ({ reps: set.reps, isCompleted: set.isCompleted })),
+      {
+        weight: weightUsed,
+        repsMin: entry.targetRepsMin,
+        repsMax: entry.targetRepsMax,
+        targetReps: entry.currentTargetReps,
+      },
+    );
+
+    return { ...entry, currentWeight: next.weight, currentTargetReps: next.targetReps };
+  });
+
+  await db.routines.update(routine.id, { exercises: updatedExercises });
 }
 
 export async function discardWorkout(sessionId: string): Promise<void> {
@@ -116,6 +171,70 @@ export async function discardWorkout(sessionId: string): Promise<void> {
 
 export async function deleteWorkout(sessionId: string): Promise<void> {
   await discardWorkout(sessionId);
+}
+
+// ---- Routines ----
+
+export async function saveAsRoutine(
+  name: string,
+  plan: PlannedExercise[],
+  smartAdjustEnabled: boolean,
+): Promise<Routine> {
+  const routine: Routine = {
+    id: newId(),
+    name,
+    createdAt: new Date().toISOString(),
+    smartAdjustEnabled,
+    exercises: plan.map((planned, index) => ({
+      exerciseId: planned.exercise.id,
+      orderIndex: index,
+      targetSets: planned.targetSets,
+      targetRepsMin: planned.targetReps,
+      targetRepsMax: planned.targetReps,
+      currentTargetReps: planned.targetReps,
+      currentWeight: planned.targetWeight ?? 0,
+    })),
+  };
+  await db.routines.add(routine);
+  return routine;
+}
+
+export async function renameRoutine(routineId: string, name: string): Promise<void> {
+  await db.routines.update(routineId, { name });
+}
+
+export async function setRoutineSmartAdjust(routineId: string, smartAdjustEnabled: boolean): Promise<void> {
+  await db.routines.update(routineId, { smartAdjustEnabled });
+}
+
+export async function updateRoutineExercises(routineId: string, exercises: RoutineExerciseEntry[]): Promise<void> {
+  await db.routines.update(routineId, { exercises });
+}
+
+export async function deleteRoutine(routineId: string): Promise<void> {
+  await db.routines.delete(routineId);
+}
+
+/** Resolves a routine's stored exercise entries into the PlannedExercise[] shape BuildWorkout consumes. */
+export async function loadPlannedExercisesFromRoutine(routineId: string): Promise<PlannedExercise[]> {
+  const routine = await db.routines.get(routineId);
+  if (!routine) return [];
+
+  const sorted = [...routine.exercises].sort((a, b) => a.orderIndex - b.orderIndex);
+  const exercises = await db.exercises.bulkGet(sorted.map((entry) => entry.exerciseId));
+
+  const planned: PlannedExercise[] = [];
+  sorted.forEach((entry, index) => {
+    const exercise = exercises[index];
+    if (!exercise) return;
+    planned.push({
+      exercise,
+      targetSets: entry.targetSets,
+      targetReps: entry.currentTargetReps,
+      targetWeight: entry.currentWeight,
+    });
+  });
+  return planned;
 }
 
 // ---- Reading a session in detail ----

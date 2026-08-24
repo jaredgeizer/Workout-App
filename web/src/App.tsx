@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { seedIfNeeded } from "./db/seed";
 import { TabBar, type TabKey } from "./components/TabBar";
 import { WorkoutScreen } from "./features/workout/WorkoutScreen";
+import { RoutinesScreen } from "./features/routines/RoutinesScreen";
 import { GymsScreen } from "./features/gyms/GymsScreen";
 import { LogScreen } from "./features/log/LogScreen";
 
@@ -25,6 +26,7 @@ export default function App() {
     <div className="mx-auto flex w-full max-w-md flex-1 flex-col bg-slate-900">
       <main className="flex flex-1 flex-col">
         {tab === "workout" && <WorkoutScreen />}
+        {tab === "routines" && <RoutinesScreen />}
         {tab === "gyms" && <GymsScreen />}
         {tab === "log" && <LogScreen />}
       </main>

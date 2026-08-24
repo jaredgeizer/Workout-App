@@ -2,20 +2,28 @@ import { useState } from "react";
 import { useLiveQuery } from "dexie-react-hooks";
 import { db } from "../../db/schema";
 import type { Exercise } from "../../types/exercise";
-import { startWorkout, type PlannedExercise } from "../../db/repo";
+import { startWorkout, saveAsRoutine, type PlannedExercise } from "../../db/repo";
 import { ExercisePicker } from "./ExercisePicker";
+import { ExercisePlanList } from "./ExercisePlanList";
 
 interface Props {
   onCancel: () => void;
   onStarted: (sessionId: string) => void;
+  initialPlan?: PlannedExercise[];
+  initialGymId?: string;
+  routineId?: string;
 }
 
-export function BuildWorkout({ onCancel, onStarted }: Props) {
+export function BuildWorkout({ onCancel, onStarted, initialPlan, initialGymId, routineId }: Props) {
   const gyms = useLiveQuery(() => db.gyms.orderBy("createdAt").toArray(), []) ?? [];
-  const [gymId, setGymId] = useState<string>("");
-  const [planned, setPlanned] = useState<PlannedExercise[]>([]);
+  const [gymId, setGymId] = useState<string>(initialGymId ?? "");
+  const [planned, setPlanned] = useState<PlannedExercise[]>(initialPlan ?? []);
   const [isPicking, setIsPicking] = useState(false);
   const [isStarting, setIsStarting] = useState(false);
+  const [isSavingRoutine, setIsSavingRoutine] = useState(false);
+  const [routineName, setRoutineName] = useState("");
+  const [smartAdjustEnabled, setSmartAdjustEnabled] = useState(true);
+  const [savedMessage, setSavedMessage] = useState(false);
 
   const selectedGym = gyms.find((g) => g.id === gymId);
 
@@ -35,8 +43,18 @@ export function BuildWorkout({ onCancel, onStarted }: Props) {
   async function handleStart() {
     if (planned.length === 0) return;
     setIsStarting(true);
-    const sessionId = await startWorkout(gymId || undefined, planned);
+    const sessionId = await startWorkout(gymId || undefined, planned, routineId);
     onStarted(sessionId);
+  }
+
+  async function handleSaveAsRoutine() {
+    const trimmed = routineName.trim();
+    if (!trimmed) return;
+    await saveAsRoutine(trimmed, planned, smartAdjustEnabled);
+    setIsSavingRoutine(false);
+    setRoutineName("");
+    setSavedMessage(true);
+    setTimeout(() => setSavedMessage(false), 2000);
   }
 
   return (
@@ -76,41 +94,55 @@ export function BuildWorkout({ onCancel, onStarted }: Props) {
           <h2 className="text-xs font-semibold uppercase tracking-wide text-slate-500">Exercises</h2>
         </div>
 
-        <div className="flex flex-col gap-2">
-          {planned.map((p, index) => (
-            <div key={`${p.exercise.id}-${index}`} className="rounded-xl bg-slate-800 p-3">
-              <div className="flex items-start justify-between">
-                <span className="font-medium text-slate-100">{p.exercise.name}</span>
-                <button onClick={() => removePlanned(index)} className="text-slate-500 active:text-red-400">
-                  ✕
+        <ExercisePlanList
+          planned={planned}
+          onUpdate={updatePlanned}
+          onRemove={removePlanned}
+          onAdd={() => setIsPicking(true)}
+        />
+
+        <div className="mt-4 border-t border-slate-800 pt-4">
+          {!isSavingRoutine ? (
+            <button
+              onClick={() => setIsSavingRoutine(true)}
+              disabled={planned.length === 0}
+              className="w-full rounded-xl bg-slate-800 py-3 font-medium text-slate-200 disabled:text-slate-600"
+            >
+              {savedMessage ? "Saved as Routine ✓" : "Save as Routine"}
+            </button>
+          ) : (
+            <div className="flex flex-col gap-2 rounded-xl bg-slate-800 p-3">
+              <input
+                autoFocus
+                value={routineName}
+                onChange={(e) => setRoutineName(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && handleSaveAsRoutine()}
+                placeholder="Routine name"
+                className="rounded-lg bg-slate-900 px-3 py-2 text-slate-100 outline-none ring-1 ring-slate-700 focus:ring-sky-500"
+              />
+              <label className="flex items-center justify-between px-1">
+                <span className="text-sm text-slate-300">Smart adjust weight/reps</span>
+                <input
+                  type="checkbox"
+                  checked={smartAdjustEnabled}
+                  onChange={(e) => setSmartAdjustEnabled(e.target.checked)}
+                  className="h-5 w-5 accent-sky-500"
+                />
+              </label>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => setIsSavingRoutine(false)}
+                  className="flex-1 rounded-lg bg-slate-700 py-2 text-slate-200"
+                >
+                  Cancel
+                </button>
+                <button onClick={handleSaveAsRoutine} className="flex-1 rounded-lg bg-sky-500 py-2 font-medium text-slate-950">
+                  Save
                 </button>
               </div>
-              <div className="mt-2 flex gap-4">
-                <Stepper
-                  label="Sets"
-                  value={p.targetSets}
-                  min={1}
-                  max={10}
-                  onChange={(v) => updatePlanned(index, { targetSets: v })}
-                />
-                <Stepper
-                  label="Reps"
-                  value={p.targetReps}
-                  min={1}
-                  max={30}
-                  onChange={(v) => updatePlanned(index, { targetReps: v })}
-                />
-              </div>
             </div>
-          ))}
+          )}
         </div>
-
-        <button
-          onClick={() => setIsPicking(true)}
-          className="mt-3 w-full rounded-xl border border-dashed border-slate-700 py-3 font-medium text-sky-400 active:bg-slate-800"
-        >
-          + Add Exercise
-        </button>
       </div>
 
       {isPicking && (
@@ -120,39 +152,6 @@ export function BuildWorkout({ onCancel, onStarted }: Props) {
           onClose={() => setIsPicking(false)}
         />
       )}
-    </div>
-  );
-}
-
-function Stepper({
-  label,
-  value,
-  min,
-  max,
-  onChange,
-}: {
-  label: string;
-  value: number;
-  min: number;
-  max: number;
-  onChange: (value: number) => void;
-}) {
-  return (
-    <div className="flex items-center gap-2">
-      <span className="text-sm text-slate-400">{label}</span>
-      <button
-        onClick={() => onChange(Math.max(min, value - 1))}
-        className="flex h-7 w-7 items-center justify-center rounded-full bg-slate-700 text-slate-200 active:bg-slate-600"
-      >
-        −
-      </button>
-      <span className="w-5 text-center text-slate-100">{value}</span>
-      <button
-        onClick={() => onChange(Math.min(max, value + 1))}
-        className="flex h-7 w-7 items-center justify-center rounded-full bg-slate-700 text-slate-200 active:bg-slate-600"
-      >
-        +
-      </button>
     </div>
   );
 }
