@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useLiveQuery } from "dexie-react-hooks";
 import { db, newId } from "../../db/schema";
 import type { Exercise } from "../../types/exercise";
-import { startWorkout, saveAsRoutine, type PlannedExercise } from "../../db/repo";
+import { DEFAULT_REST_SECONDS, startWorkout, saveAsRoutine, type PlannedExercise } from "../../db/repo";
 import { groupTogether } from "../../domain/superset";
 import { ExercisePicker } from "./ExercisePicker";
 import { ExercisePlanList } from "./ExercisePlanList";
@@ -12,13 +12,15 @@ interface Props {
   onStarted: (sessionId: string) => void;
   initialPlan?: PlannedExercise[];
   initialGymId?: string;
+  initialRestSeconds?: number;
   routineId?: string;
 }
 
-export function BuildWorkout({ onCancel, onStarted, initialPlan, initialGymId, routineId }: Props) {
+export function BuildWorkout({ onCancel, onStarted, initialPlan, initialGymId, initialRestSeconds, routineId }: Props) {
   const gyms = useLiveQuery(() => db.gyms.orderBy("createdAt").toArray(), []) ?? [];
   const [gymId, setGymId] = useState<string>(initialGymId ?? "");
   const [planned, setPlanned] = useState<PlannedExercise[]>(initialPlan ?? []);
+  const [restSeconds, setRestSeconds] = useState<number>(initialRestSeconds ?? DEFAULT_REST_SECONDS);
   const [isPicking, setIsPicking] = useState(false);
   const [isStarting, setIsStarting] = useState(false);
   const [isSavingRoutine, setIsSavingRoutine] = useState(false);
@@ -67,14 +69,14 @@ export function BuildWorkout({ onCancel, onStarted, initialPlan, initialGymId, r
   async function handleStart() {
     if (planned.length === 0) return;
     setIsStarting(true);
-    const sessionId = await startWorkout(gymId || undefined, planned, routineId);
+    const sessionId = await startWorkout(gymId || undefined, planned, routineId, restSeconds);
     onStarted(sessionId);
   }
 
   async function handleSaveAsRoutine() {
     const trimmed = routineName.trim();
     if (!trimmed) return;
-    await saveAsRoutine(trimmed, planned, smartAdjustEnabled);
+    await saveAsRoutine(trimmed, planned, smartAdjustEnabled, restSeconds);
     setIsSavingRoutine(false);
     setRoutineName("");
     setSavedMessage(true);
@@ -83,18 +85,12 @@ export function BuildWorkout({ onCancel, onStarted, initialPlan, initialGymId, r
 
   return (
     <div className="flex flex-1 flex-col">
-      <div className="flex items-center justify-between border-b border-slate-800 p-4">
-        <button onClick={onCancel} className="text-sm font-medium text-slate-400 active:text-slate-200">
+      <div className="grid grid-cols-[auto_1fr_auto] items-center border-b border-slate-800 p-4">
+        <button onClick={onCancel} className="justify-self-start text-sm font-medium text-slate-400 active:text-slate-200">
           Cancel
         </button>
-        <h1 className="text-lg font-semibold text-slate-100">New Workout</h1>
-        <button
-          onClick={handleStart}
-          disabled={planned.length === 0 || isStarting}
-          className="text-sm font-semibold text-sky-400 disabled:text-slate-600"
-        >
-          Start
-        </button>
+        <h1 className="justify-self-center text-lg font-semibold text-slate-100">New Workout</h1>
+        <div />
       </div>
 
       <div className="flex-1 overflow-y-auto p-4">
@@ -112,6 +108,17 @@ export function BuildWorkout({ onCancel, onStarted, initialPlan, initialGymId, r
               </option>
             ))}
           </select>
+        </div>
+
+        <div className="mb-5">
+          <label className="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-500">Rest time (s)</label>
+          <input
+            type="number"
+            inputMode="numeric"
+            value={restSeconds}
+            onChange={(e) => setRestSeconds(Number(e.target.value) || DEFAULT_REST_SECONDS)}
+            className="w-full rounded-lg bg-slate-800 px-3 py-2 text-slate-100 outline-none ring-1 ring-slate-700 focus:ring-sky-500"
+          />
         </div>
 
         <div className="mb-2 flex items-center justify-between">
@@ -169,6 +176,14 @@ export function BuildWorkout({ onCancel, onStarted, initialPlan, initialGymId, r
             </div>
           )}
         </div>
+
+        <button
+          onClick={() => void handleStart()}
+          disabled={planned.length === 0 || isStarting}
+          className="mt-4 w-full rounded-xl bg-sky-500 py-4 text-lg font-semibold text-slate-950 active:bg-sky-400 disabled:bg-slate-700 disabled:text-slate-500"
+        >
+          Start Workout
+        </button>
       </div>
 
       {isPicking && (

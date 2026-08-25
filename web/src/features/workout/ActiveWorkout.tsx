@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useLiveQuery } from "dexie-react-hooks";
 import {
+  DEFAULT_REST_SECONDS,
   addExerciseToSession,
   addSetToPerformance,
   disbandSuperset,
@@ -22,8 +23,6 @@ import { RestTimer } from "./RestTimer";
 import { SupersetSelectBar } from "./SupersetSelectBar";
 import { formatElapsed } from "./formatTime";
 import { unlockAudio } from "./beep";
-
-const REST_DURATION_MS = 90_000;
 
 type SetStatus = "completed" | "active" | "pending";
 
@@ -99,9 +98,10 @@ export function ActiveWorkout({ sessionId, onDone }: Props) {
     unlockAudio();
     await updateSet(set.id, { ...extra, isCompleted: true });
 
+    const restDurationMs = (detail?.session.restSeconds ?? DEFAULT_REST_SECONDS) * 1000;
     const groupId = performance.performance.groupId;
     if (!groupId || !members) {
-      setRestEndsAt(Date.now() + REST_DURATION_MS);
+      setRestEndsAt(Date.now() + restDurationMs);
       return;
     }
 
@@ -113,7 +113,7 @@ export function ActiveWorkout({ sessionId, onDone }: Props) {
 
     const { nextPerformanceId, roundCompleted } = advanceSupersetRotation(groupMembers, performance.performance.id);
     if (nextPerformanceId) setGroupFocus((prev) => ({ ...prev, [groupId]: nextPerformanceId }));
-    if (roundCompleted) setRestEndsAt(Date.now() + REST_DURATION_MS);
+    if (roundCompleted) setRestEndsAt(Date.now() + restDurationMs);
   }
 
   async function handleUndoSet(set: SetEntry) {
@@ -164,17 +164,15 @@ export function ActiveWorkout({ sessionId, onDone }: Props) {
 
   return (
     <div className="flex flex-1 flex-col">
-      <div className="flex items-center justify-between border-b border-slate-800 p-4">
-        <button onClick={handleCancel} className="text-sm font-medium text-red-400 active:text-red-300">
+      <div className="grid grid-cols-[auto_1fr_auto] items-center border-b border-slate-800 p-4">
+        <button onClick={handleCancel} className="justify-self-start text-sm font-medium text-red-400 active:text-red-300">
           Cancel
         </button>
-        <div className="flex flex-col items-center">
+        <div className="flex flex-col items-center justify-self-center">
           <h1 className="text-lg font-semibold text-slate-100">Workout in Progress</h1>
           <span className="text-xs tabular-nums text-slate-500">{elapsedLabel}</span>
         </div>
-        <button onClick={handleFinish} disabled={isSaving} className="text-sm font-semibold text-sky-400 disabled:text-slate-600">
-          Finish
-        </button>
+        <div />
       </div>
 
       <div className="flex-1 overflow-y-auto p-4 pb-24">
@@ -255,30 +253,30 @@ export function ActiveWorkout({ sessionId, onDone }: Props) {
                     })}
                   </div>
 
-                  <div className="mt-3 flex items-center gap-3">
+                  <div className="mt-3">
                     <button
                       onClick={() => void handleAddSet(p.performance.id)}
                       className="text-xs font-medium text-sky-400 active:text-sky-300"
                     >
                       + Add Set
                     </button>
+                  </div>
 
-                    <div className="ml-auto">
-                      {isExerciseLogged ? (
-                        <span className="rounded-lg bg-emerald-500/15 px-3 py-1.5 text-sm font-medium text-emerald-400">
-                          ✓ Exercise Complete
-                        </span>
-                      ) : isHoldMode ? null : !canAct ? (
-                        <span className="rounded-lg bg-slate-700 px-3 py-1.5 text-sm text-slate-400">Up next</span>
-                      ) : (
-                        <button
-                          onClick={() => void logSet(block.groupId ? block.members : undefined, p, sortedSets[activeIndex])}
-                          className="rounded-lg bg-sky-500 px-4 py-1.5 text-sm font-semibold text-slate-950 active:bg-sky-400"
-                        >
-                          {isFinalSet ? "Log Exercise" : "Log Set"}
-                        </button>
-                      )}
-                    </div>
+                  <div className="mt-2">
+                    {isExerciseLogged ? (
+                      <span className="block w-full rounded-lg bg-emerald-500/15 py-3 text-center text-base font-medium text-emerald-400">
+                        ✓ Exercise Complete
+                      </span>
+                    ) : isHoldMode ? null : !canAct ? (
+                      <span className="block w-full rounded-lg bg-slate-700 py-3 text-center text-base text-slate-400">Up next</span>
+                    ) : (
+                      <button
+                        onClick={() => void logSet(block.groupId ? block.members : undefined, p, sortedSets[activeIndex])}
+                        className="w-full rounded-lg bg-sky-500 py-3 text-base font-semibold text-slate-950 active:bg-sky-400"
+                      >
+                        {isFinalSet ? "Log Exercise" : "Log Set"}
+                      </button>
+                    )}
                   </div>
                 </div>
               );
@@ -308,6 +306,14 @@ export function ActiveWorkout({ sessionId, onDone }: Props) {
           className="mt-4 w-full rounded-xl border border-dashed border-slate-700 py-3 font-medium text-sky-400 active:bg-slate-800"
         >
           + Add Exercise
+        </button>
+
+        <button
+          onClick={() => void handleFinish()}
+          disabled={isSaving}
+          className="mt-4 w-full rounded-xl bg-sky-500 py-4 text-lg font-semibold text-slate-950 active:bg-sky-400 disabled:bg-slate-700 disabled:text-slate-500"
+        >
+          Finish Workout
         </button>
       </div>
 
@@ -362,10 +368,6 @@ function SetRow({
 }) {
   return (
     <div className={`flex items-center gap-2 ${status === "pending" ? "opacity-40" : "opacity-100"}`}>
-      <span className={`w-12 whitespace-nowrap text-sm ${status === "completed" ? "text-emerald-400" : "text-slate-400"}`}>
-        Set {set.setNumber}
-      </span>
-
       <input
         type="number"
         inputMode="decimal"

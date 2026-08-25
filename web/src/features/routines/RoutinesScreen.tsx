@@ -10,7 +10,7 @@ import { FullScreenOverlay } from "../../components/FullScreenOverlay";
 type Stage =
   | { kind: "list" }
   | { kind: "detail"; routineId: string }
-  | { kind: "building"; routineId: string; initialPlan: PlannedExercise[] };
+  | { kind: "building"; routineId: string; initialPlan: PlannedExercise[]; initialRestSeconds?: number };
 
 interface Props {
   onWorkoutStarted: (sessionId: string) => void;
@@ -21,8 +21,11 @@ export function RoutinesScreen({ onWorkoutStarted }: Props) {
   const [stage, setStage] = useState<Stage>({ kind: "list" });
 
   async function handleStart(routineId: string) {
-    const initialPlan = await loadPlannedExercisesFromRoutine(routineId);
-    setStage({ kind: "building", routineId, initialPlan });
+    const [initialPlan, routine] = await Promise.all([
+      loadPlannedExercisesFromRoutine(routineId),
+      db.routines.get(routineId),
+    ]);
+    setStage({ kind: "building", routineId, initialPlan, initialRestSeconds: routine?.restSeconds });
   }
 
   if (stage.kind === "building") {
@@ -30,6 +33,7 @@ export function RoutinesScreen({ onWorkoutStarted }: Props) {
       <FullScreenOverlay>
         <BuildWorkout
           initialPlan={stage.initialPlan}
+          initialRestSeconds={stage.initialRestSeconds}
           routineId={stage.routineId}
           onCancel={() => setStage({ kind: "detail", routineId: stage.routineId })}
           onStarted={(sessionId) => {

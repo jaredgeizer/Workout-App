@@ -3,7 +3,14 @@ import { useLiveQuery } from "dexie-react-hooks";
 import { db, newId } from "../../db/schema";
 import type { RoutineExerciseEntry } from "../../types/routine";
 import type { Exercise } from "../../types/exercise";
-import { renameRoutine, setRoutineSmartAdjust, updateRoutineExercises, deleteRoutine } from "../../db/repo";
+import {
+  DEFAULT_REST_SECONDS,
+  renameRoutine,
+  setRoutineRestSeconds,
+  setRoutineSmartAdjust,
+  updateRoutineExercises,
+  deleteRoutine,
+} from "../../db/repo";
 import { groupTogether } from "../../domain/superset";
 import { ExercisePicker } from "../workout/ExercisePicker";
 import { Stepper } from "../workout/ExercisePlanList";
@@ -142,6 +149,17 @@ export function RoutineDetail({ routineId, onBack, onStart }: Props) {
           className="h-5 w-5 accent-sky-500"
         />
       </label>
+
+      <div className="rounded-xl bg-slate-800 px-4 py-3">
+        <label className="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-500">Rest time (s)</label>
+        <input
+          type="number"
+          inputMode="numeric"
+          value={routine.restSeconds ?? DEFAULT_REST_SECONDS}
+          onChange={(e) => void setRoutineRestSeconds(routineId, Number(e.target.value) || DEFAULT_REST_SECONDS)}
+          className="w-full rounded-lg bg-slate-900 px-3 py-2 text-slate-100 outline-none ring-1 ring-slate-700 focus:ring-sky-500"
+        />
+      </div>
 
       <button
         onClick={() => onStart(routineId)}
