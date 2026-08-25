@@ -17,4 +17,5 @@ export interface Routine {
   createdAt: string;
   smartAdjustEnabled: boolean;
   exercises: RoutineExerciseEntry[];
+  restSeconds?: number; // undefined = default rest time (see DEFAULT_REST_SECONDS)
 }

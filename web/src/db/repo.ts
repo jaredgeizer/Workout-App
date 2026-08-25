@@ -57,6 +57,8 @@ export async function renameGym(gymId: string, name: string): Promise<void> {
 
 // ---- Planning + starting a workout ----
 
+export const DEFAULT_REST_SECONDS = 90;
+
 export interface PlannedExercise {
   exercise: Exercise;
   targetSets: number;
@@ -75,6 +77,7 @@ export async function startWorkout(
   gymId: string | undefined,
   plan: PlannedExercise[],
   routineId?: string,
+  restSeconds?: number,
 ): Promise<string> {
   const sessionId = newId();
   const session: WorkoutSession = {
@@ -84,6 +87,7 @@ export async function startWorkout(
     isCompleted: false,
     gymId,
     routineId,
+    restSeconds,
   };
 
   const performances: ExercisePerformance[] = [];
@@ -314,12 +318,14 @@ export async function saveAsRoutine(
   name: string,
   plan: PlannedExercise[],
   smartAdjustEnabled: boolean,
+  restSeconds?: number,
 ): Promise<Routine> {
   const routine: Routine = {
     id: newId(),
     name,
     createdAt: new Date().toISOString(),
     smartAdjustEnabled,
+    restSeconds,
     exercises: plan.map((planned, index) => ({
       exerciseId: planned.exercise.id,
       orderIndex: index,
@@ -343,6 +349,10 @@ export async function renameRoutine(routineId: string, name: string): Promise<vo
 
 export async function setRoutineSmartAdjust(routineId: string, smartAdjustEnabled: boolean): Promise<void> {
   await db.routines.update(routineId, { smartAdjustEnabled });
+}
+
+export async function setRoutineRestSeconds(routineId: string, restSeconds: number): Promise<void> {
+  await db.routines.update(routineId, { restSeconds });
 }
 
 export async function updateRoutineExercises(routineId: string, exercises: RoutineExerciseEntry[]): Promise<void> {

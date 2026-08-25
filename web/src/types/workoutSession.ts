@@ -6,6 +6,7 @@ export interface WorkoutSession {
   isCompleted: boolean;
   gymId?: string;
   routineId?: string;
+  restSeconds?: number; // undefined = default rest time (see DEFAULT_REST_SECONDS)
 }
 
 export interface ExercisePerformance {
