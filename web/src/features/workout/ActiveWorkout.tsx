@@ -88,6 +88,7 @@ export function ActiveWorkout({ sessionId, onDone }: Props) {
 
   async function handleFinish() {
     if (!detail) return;
+    setRestEndsAt(null); // don't leave a rest timer floating over the effort-rating screen
     setIsSaving(true);
     const duration = (Date.now() - new Date(detail.session.date).getTime()) / 1000;
     await finishWorkout(sessionId, duration);
@@ -105,6 +106,14 @@ export function ActiveWorkout({ sessionId, onDone }: Props) {
   ) {
     unlockAudio();
     await updateSet(set.id, { ...extra, isCompleted: true });
+
+    // Nothing left to rest before if that was the last remaining set in the whole workout —
+    // skip starting a rest timer that would otherwise float over the "Finish Workout" screen.
+    const isLastRemainingSet = detail?.performances.every((p) => p.sets.every((s) => s.id === set.id || s.isCompleted)) ?? false;
+    if (isLastRemainingSet) {
+      setRestEndsAt(null);
+      return;
+    }
 
     const restDurationMs = (detail?.session.restSeconds ?? DEFAULT_REST_SECONDS) * 1000;
     const groupId = performance.performance.groupId;
