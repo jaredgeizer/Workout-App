@@ -1,5 +1,8 @@
 import { useState } from "react";
 import type { PlannedExercise } from "../../db/repo";
+import type { Exercise } from "../../types/exercise";
+import { ExerciseDetailModal } from "./ExerciseDetailModal";
+import { ExerciseThumbnail } from "./ExerciseThumbnail";
 import { SupersetSelectBar } from "./SupersetSelectBar";
 
 interface Props {
@@ -34,6 +37,7 @@ function toBlocks(planned: PlannedExercise[]): Block[] {
 export function ExercisePlanList({ planned, onUpdate, onRemove, onAdd, onMakeSuperset, onDisbandSuperset }: Props) {
   const [selectMode, setSelectMode] = useState(false);
   const [selectedIndexes, setSelectedIndexes] = useState<Set<number>>(new Set());
+  const [detailExercise, setDetailExercise] = useState<Exercise | null>(null);
 
   function toggleSelected(index: number) {
     setSelectedIndexes((prev) => {
@@ -79,6 +83,7 @@ export function ExercisePlanList({ planned, onUpdate, onRemove, onAdd, onMakeSup
                       className="h-4 w-4 accent-sky-500"
                     />
                   )}
+                  <ExerciseThumbnail exercise={p.exercise} onOpen={() => setDetailExercise(p.exercise)} />
                   <span className="font-medium text-slate-100">{p.exercise.name}</span>
                 </div>
                 <button onClick={() => onRemove(index)} className="text-slate-500 active:text-red-400">
@@ -148,6 +153,8 @@ export function ExercisePlanList({ planned, onUpdate, onRemove, onAdd, onMakeSup
       >
         + Add Exercise
       </button>
+
+      {detailExercise && <ExerciseDetailModal exercise={detailExercise} onClose={() => setDetailExercise(null)} />}
     </>
   );
 }

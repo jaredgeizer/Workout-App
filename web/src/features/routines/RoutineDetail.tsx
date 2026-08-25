@@ -12,8 +12,10 @@ import {
   deleteRoutine,
 } from "../../db/repo";
 import { groupTogether } from "../../domain/superset";
+import { ExerciseDetailModal } from "../workout/ExerciseDetailModal";
 import { ExercisePicker } from "../workout/ExercisePicker";
 import { Stepper } from "../workout/ExercisePlanList";
+import { ExerciseThumbnail } from "../workout/ExerciseThumbnail";
 import { SupersetSelectBar } from "../workout/SupersetSelectBar";
 
 interface Props {
@@ -50,6 +52,7 @@ export function RoutineDetail({ routineId, onBack, onStart }: Props) {
   const [isPicking, setIsPicking] = useState(false);
   const [selectMode, setSelectMode] = useState(false);
   const [selectedIndexes, setSelectedIndexes] = useState<Set<number>>(new Set());
+  const [detailExercise, setDetailExercise] = useState<Exercise | null>(null);
 
   if (!routine) {
     return (
@@ -196,6 +199,13 @@ export function RoutineDetail({ routineId, onBack, onStart }: Props) {
                         className="h-4 w-4 accent-sky-500"
                       />
                     )}
+                    <ExerciseThumbnail
+                      exercise={exerciseById.get(entry.exerciseId)}
+                      onOpen={() => {
+                        const ex = exerciseById.get(entry.exerciseId);
+                        if (ex) setDetailExercise(ex);
+                      }}
+                    />
                     <span className="font-medium text-slate-100">
                       {exerciseById.get(entry.exerciseId)?.name ?? "Exercise"}
                     </span>
@@ -314,6 +324,8 @@ export function RoutineDetail({ routineId, onBack, onStart }: Props) {
       {isPicking && (
         <ExercisePicker availableEquipmentIds={undefined} onSelect={addEntry} onClose={() => setIsPicking(false)} />
       )}
+
+      {detailExercise && <ExerciseDetailModal exercise={detailExercise} onClose={() => setDetailExercise(null)} />}
     </div>
   );
 }

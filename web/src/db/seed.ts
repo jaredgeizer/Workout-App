@@ -17,6 +17,7 @@ interface SeedExercise {
   category: ExerciseCategory;
   equipment: string[];
   defaultLogMode?: "hold";
+  media?: string;
 }
 
 const HOLD_MODE_EXERCISE_NAMES = ["Plank", "Side Plank", "Dead Hang"];
@@ -32,6 +33,7 @@ export async function seedIfNeeded(): Promise<void> {
   const equipmentByName = await seedEquipment();
   await seedExercises(equipmentByName);
   await backfillHoldModeFlags();
+  await backfillMediaUrls();
   await seedDefaultGym(equipmentByName);
 }
 
@@ -66,6 +68,7 @@ async function seedExercises(equipmentByName: Map<string, string>): Promise<void
     equipmentIds: item.equipment.map((name) => equipmentByName.get(name)).filter((id): id is string => !!id),
     isCustom: false,
     defaultLogMode: item.defaultLogMode,
+    mediaUrl: item.media,
   }));
   await db.exercises.bulkAdd(rows);
 }
@@ -79,6 +82,21 @@ async function backfillHoldModeFlags(): Promise<void> {
   const rows = await db.exercises.where("name").anyOf(HOLD_MODE_EXERCISE_NAMES).toArray();
   const needsUpdate = rows.filter((row) => row.defaultLogMode !== "hold");
   await Promise.all(needsUpdate.map((row) => db.exercises.update(row.id, { defaultLogMode: "hold" })));
+}
+
+/**
+ * Syncs `mediaUrl` from the seed data onto existing rows by name — exercises seeded before
+ * an image was curated for them would otherwise never pick it up, since seeding only inserts
+ * missing rows. Idempotent; only writes when the seed value actually differs from what's stored.
+ */
+async function backfillMediaUrls(): Promise<void> {
+  const withMedia = (exercisesSeed as SeedExercise[]).filter((item) => item.media);
+  if (withMedia.length === 0) return;
+
+  const mediaByName = new Map(withMedia.map((item) => [item.name, item.media]));
+  const rows = await db.exercises.where("name").anyOf([...mediaByName.keys()]).toArray();
+  const needsUpdate = rows.filter((row) => row.mediaUrl !== mediaByName.get(row.name));
+  await Promise.all(needsUpdate.map((row) => db.exercises.update(row.id, { mediaUrl: mediaByName.get(row.name) })));
 }
 
 async function seedDefaultGym(equipmentByName: Map<string, string>): Promise<void> {

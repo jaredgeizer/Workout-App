@@ -1,6 +1,10 @@
+import { useState } from "react";
 import { useLiveQuery } from "dexie-react-hooks";
 import { loadSessionDetail, sessionMuscleSummary, sessionTotalVolume, deleteWorkout } from "../../db/repo";
+import type { Exercise } from "../../types/exercise";
 import { muscleDisplayName } from "../../types/muscleGroup";
+import { ExerciseDetailModal } from "../workout/ExerciseDetailModal";
+import { ExerciseThumbnail } from "../workout/ExerciseThumbnail";
 
 interface Props {
   sessionId: string;
@@ -9,6 +13,7 @@ interface Props {
 
 export function LogDetail({ sessionId, onBack }: Props) {
   const detail = useLiveQuery(() => loadSessionDetail(sessionId), [sessionId]);
+  const [detailExercise, setDetailExercise] = useState<Exercise | null>(null);
 
   if (!detail) {
     return (
@@ -52,7 +57,10 @@ export function LogDetail({ sessionId, onBack }: Props) {
       <div className="flex flex-col gap-3">
         {detail.performances.map((p) => (
           <div key={p.performance.id} className="rounded-xl bg-slate-800 p-3">
-            <h2 className="mb-2 font-medium text-slate-100">{p.exercise?.name ?? "Exercise"}</h2>
+            <div className="mb-2 flex items-center gap-2">
+              <ExerciseThumbnail exercise={p.exercise} onOpen={() => p.exercise && setDetailExercise(p.exercise)} />
+              <h2 className="font-medium text-slate-100">{p.exercise?.name ?? "Exercise"}</h2>
+            </div>
             <div className="flex flex-col gap-1">
               {p.sets.map((set) => (
                 <div key={set.id} className="flex items-center justify-between text-sm">
@@ -66,6 +74,8 @@ export function LogDetail({ sessionId, onBack }: Props) {
           </div>
         ))}
       </div>
+
+      {detailExercise && <ExerciseDetailModal exercise={detailExercise} onClose={() => setDetailExercise(null)} />}
     </div>
   );
 }
