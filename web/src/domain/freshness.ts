@@ -24,15 +24,22 @@ export const MUSCLE_RECOVERY_HOURS: Record<MuscleGroup, number> = {
   neck: 48,
 };
 
+/** Recovery time grows this fraction per decade of age past 30. Exported (rather than kept
+ * private) so the Profile screen's read-only explainer can quote the live value. */
+export const AGE_RECOVERY_STEP_PER_DECADE = 0.1;
+
 /**
  * Rough heuristic, not a tuned model: age is the one factor with real backing for needing
- * more recovery time, so it's the only one applied. +10% recovery time per decade past 30;
- * no adjustment below 30 rather than inventing a "recovers faster than baseline" effect.
+ * more recovery time, so it's the only one applied. No adjustment below 30 rather than
+ * inventing a "recovers faster than baseline" effect.
  */
 export function ageRecoveryMultiplier(age: number | undefined): number {
   if (!age || age <= 30) return 1;
-  return 1 + ((age - 30) / 10) * 0.1;
+  return 1 + ((age - 30) / 10) * AGE_RECOVERY_STEP_PER_DECADE;
 }
+
+/** Recovery time shifts this fraction per session-effort point away from 5 (moderate). */
+export const EFFORT_RECOVERY_STEP_PER_POINT = 0.1;
 
 /**
  * Effort 5 (medium) is neutral; recovery time shifts +/-10% per point away from that,
@@ -40,16 +47,16 @@ export function ageRecoveryMultiplier(age: number | undefined): number {
  */
 export function effortRecoveryMultiplier(effort: number | undefined): number {
   if (effort === undefined) return 1;
-  return 1 + (effort - 5) * 0.1;
+  return 1 + (effort - 5) * EFFORT_RECOVERY_STEP_PER_POINT;
 }
 
 /** A single exercise at max effort (10) fatigues a muscle this much; scales down linearly
  * with effort and stacks per exercise that hit the muscle as a primary mover in the session. */
-const PER_HIT_FATIGUE_AT_MAX_EFFORT = 2 / 3;
+export const PER_HIT_FATIGUE_AT_MAX_EFFORT = 2 / 3;
 
 /** However much volume/effort a session piles on, a muscle is never driven below this much
  * fresh immediately afterward — an all-out session shouldn't read the same as an injury. */
-const MAX_SESSION_FATIGUE = 0.8;
+export const MAX_SESSION_FATIGUE = 0.8;
 
 /**
  * How fresh a muscle reads the instant a session ends: 1 minus accumulated fatigue from every

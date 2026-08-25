@@ -2,8 +2,17 @@ import { db } from "../db/schema";
 import type { WorkoutSession } from "../types/workoutSession";
 
 const TRAILING_DAYS = 35;
-const CHRONIC_WINDOW_DAYS = 28;
-const ACUTE_WINDOW_DAYS = 7;
+export const CHRONIC_WINDOW_DAYS = 28;
+export const ACUTE_WINDOW_DAYS = 7;
+
+/** Percent-difference bands for the qualitative label — exported so the Profile screen's
+ * read-only explainer can quote the live thresholds. Approximates Apple's public bands. */
+export const LOAD_LABEL_THRESHOLDS = {
+  wellBelow: -30,
+  below: -10,
+  steady: 10,
+  above: 50,
+} as const;
 
 /** Session-RPE training load: duration (minutes) x effort. 0 for unrated/skipped sessions. */
 export function sessionLoad(session: WorkoutSession): number {
@@ -97,9 +106,9 @@ export async function computeTrainingLoad(): Promise<TrainingLoadSummary> {
 }
 
 function labelForPercentDiff(percentDiff: number): LoadLabel {
-  if (percentDiff <= -30) return "Well Below";
-  if (percentDiff <= -10) return "Below";
-  if (percentDiff < 10) return "Steady";
-  if (percentDiff < 50) return "Above";
+  if (percentDiff <= LOAD_LABEL_THRESHOLDS.wellBelow) return "Well Below";
+  if (percentDiff <= LOAD_LABEL_THRESHOLDS.below) return "Below";
+  if (percentDiff < LOAD_LABEL_THRESHOLDS.steady) return "Steady";
+  if (percentDiff < LOAD_LABEL_THRESHOLDS.above) return "Above";
   return "Well Above";
 }
