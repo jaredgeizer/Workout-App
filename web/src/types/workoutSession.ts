@@ -7,6 +7,7 @@ export interface WorkoutSession {
   gymId?: string;
   routineId?: string;
   restSeconds?: number; // undefined = default rest time (see DEFAULT_REST_SECONDS)
+  effort?: number; // 1-10 RPE; undefined = not rated/skipped, contributes 0 training load
 }
 
 export interface ExercisePerformance {

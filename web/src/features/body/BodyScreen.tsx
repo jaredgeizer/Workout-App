@@ -3,6 +3,7 @@ import { useLiveQuery } from "dexie-react-hooks";
 import { computeMuscleFreshness, type MuscleFreshness } from "../../domain/freshness";
 import { muscleDisplayName } from "../../types/muscleGroup";
 import { ProfileEditor } from "../profile/ProfileEditor";
+import { TrainingLoadCard } from "./TrainingLoadCard";
 
 const REFRESH_INTERVAL_MS = 60_000;
 
@@ -42,6 +43,8 @@ export function BodyScreen() {
       </div>
 
       {isEditingProfile && <ProfileEditor onClose={() => setIsEditingProfile(false)} />}
+
+      <TrainingLoadCard />
 
       <ul className="flex flex-col gap-3">
         {withPercent.map((entry) => (

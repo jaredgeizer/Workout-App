@@ -34,6 +34,15 @@ export function ageRecoveryMultiplier(age: number | undefined): number {
   return 1 + ((age - 30) / 10) * 0.1;
 }
 
+/**
+ * Effort 5 (medium) is neutral; recovery time shifts +/-10% per point away from that,
+ * same rough-heuristic spirit as ageRecoveryMultiplier. Unrated sessions are neutral too.
+ */
+export function effortRecoveryMultiplier(effort: number | undefined): number {
+  if (effort === undefined) return 1;
+  return 1 + (effort - 5) * 0.1;
+}
+
 export interface MuscleFreshness {
   muscle: MuscleGroup;
   lastTrainedAt: string | null;
@@ -56,31 +65,32 @@ export async function computeMuscleFreshness(): Promise<MuscleFreshness[]> {
   const exercises = await db.exercises.bulkGet([...new Set(relevantPerformances.map((p) => p.exerciseId))]);
   const exerciseById = new Map(exercises.filter((e) => !!e).map((e) => [e.id, e]));
 
-  const lastTrainedAt = new Map<MuscleGroup, string>();
+  const lastTrainedBy = new Map<MuscleGroup, { date: string; sessionId: string }>();
   for (const performance of relevantPerformances) {
     const exercise = exerciseById.get(performance.exerciseId);
     const session = sessionById.get(performance.sessionId);
     if (!exercise || !session) continue;
 
     for (const muscle of exercise.primaryMuscles) {
-      const existing = lastTrainedAt.get(muscle);
-      if (!existing || session.date > existing) {
-        lastTrainedAt.set(muscle, session.date);
+      const existing = lastTrainedBy.get(muscle);
+      if (!existing || session.date > existing.date) {
+        lastTrainedBy.set(muscle, { date: session.date, sessionId: session.id });
       }
     }
   }
 
   const profile = await getProfile();
-  const multiplier = ageRecoveryMultiplier(profile?.age);
+  const ageMultiplier = ageRecoveryMultiplier(profile?.age);
 
   const now = Date.now();
   return MUSCLE_GROUPS.map((muscle) => {
-    const lastDate = lastTrainedAt.get(muscle) ?? null;
-    if (!lastDate) {
+    const lastTrained = lastTrainedBy.get(muscle);
+    if (!lastTrained) {
       return { muscle, lastTrainedAt: null, freshnessScore: 1 };
     }
-    const hoursSince = (now - new Date(lastDate).getTime()) / (1000 * 60 * 60);
-    const recoveryWindow = MUSCLE_RECOVERY_HOURS[muscle] * multiplier;
-    return { muscle, lastTrainedAt: lastDate, freshnessScore: hoursSince / recoveryWindow };
+    const hoursSince = (now - new Date(lastTrained.date).getTime()) / (1000 * 60 * 60);
+    const effort = sessionById.get(lastTrained.sessionId)?.effort;
+    const recoveryWindow = MUSCLE_RECOVERY_HOURS[muscle] * ageMultiplier * effortRecoveryMultiplier(effort);
+    return { muscle, lastTrainedAt: lastTrained.date, freshnessScore: hoursSince / recoveryWindow };
   });
 }

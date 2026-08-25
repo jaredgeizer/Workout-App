@@ -214,6 +214,10 @@ export async function finishWorkout(sessionId: string, duration: number): Promis
   await applyProgressionIfApplicable(sessionId);
 }
 
+export async function rateWorkoutEffort(sessionId: string, effort: number): Promise<void> {
+  await db.sessions.update(sessionId, { effort });
+}
+
 /**
  * If this session was started from a routine with smart-adjust on, updates that
  * routine's stored weight/rep target per exercise based on what was actually logged.

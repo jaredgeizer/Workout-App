@@ -46,6 +46,7 @@ export function LogDetail({ sessionId, onBack }: Props) {
         <Stat label="Gym" value={detail.gym?.name ?? "Any Equipment"} />
         <Stat label="Duration" value={`${Math.round(detail.session.duration / 60)} min`} />
         <Stat label="Volume" value={`${Math.round(volume)} lb`} />
+        {detail.session.effort !== undefined && <Stat label="Effort" value={`${detail.session.effort}/10`} />}
       </div>
 
       <div className="flex flex-col gap-3">

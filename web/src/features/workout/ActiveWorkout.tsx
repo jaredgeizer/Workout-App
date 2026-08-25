@@ -16,6 +16,7 @@ import {
 import { advanceSupersetRotation, type SupersetGroupMember } from "../../domain/superset";
 import type { Exercise } from "../../types/exercise";
 import type { SetEntry } from "../../types/workoutSession";
+import { EffortRatingModal } from "./EffortRatingModal";
 import { ExercisePicker } from "./ExercisePicker";
 import { ExerciseSwapPicker } from "./ExerciseSwapPicker";
 import { HoldStopwatch } from "./HoldStopwatch";
@@ -60,6 +61,7 @@ interface Props {
 export function ActiveWorkout({ sessionId, onDone }: Props) {
   const detail = useLiveQuery(() => loadSessionDetail(sessionId), [sessionId]);
   const [isSaving, setIsSaving] = useState(false);
+  const [isRatingEffort, setIsRatingEffort] = useState(false);
   const [isPicking, setIsPicking] = useState(false);
   const [swappingPerformance, setSwappingPerformance] = useState<PerformanceDetail | null>(null);
   const [restEndsAt, setRestEndsAt] = useState<number | null>(null);
@@ -84,7 +86,8 @@ export function ActiveWorkout({ sessionId, onDone }: Props) {
     setIsSaving(true);
     const duration = (Date.now() - new Date(detail.session.date).getTime()) / 1000;
     await finishWorkout(sessionId, duration);
-    onDone();
+    setIsSaving(false);
+    setIsRatingEffort(true);
   }
 
   /** Writes the set, then — only if it belongs to a superset group — advances whose turn it is
@@ -322,6 +325,8 @@ export function ActiveWorkout({ sessionId, onDone }: Props) {
           <div className="rounded-xl bg-slate-800 px-4 py-3 text-slate-100">Saving…</div>
         </div>
       )}
+
+      {isRatingEffort && <EffortRatingModal sessionId={sessionId} onDone={onDone} />}
 
       {isPicking && (
         <ExercisePicker
