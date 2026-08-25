@@ -2,6 +2,9 @@
 
 :root {
   color-scheme: dark;
+  /* Bumps the rem base from the browser default (16px) to 18px — every rem-based
+     Tailwind utility (text sizes, headings, spacing, icons) scales up with it. */
+  font-size: 18px;
 }
 
 html,

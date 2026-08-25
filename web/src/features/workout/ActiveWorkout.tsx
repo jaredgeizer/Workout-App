@@ -362,7 +362,7 @@ function SetRow({
 }) {
   return (
     <div className={`flex items-center gap-2 ${status === "pending" ? "opacity-40" : "opacity-100"}`}>
-      <span className={`w-10 text-sm ${status === "completed" ? "text-emerald-400" : "text-slate-400"}`}>
+      <span className={`w-12 whitespace-nowrap text-sm ${status === "completed" ? "text-emerald-400" : "text-slate-400"}`}>
         Set {set.setNumber}
       </span>
 

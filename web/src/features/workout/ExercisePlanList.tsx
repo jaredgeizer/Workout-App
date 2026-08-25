@@ -105,7 +105,7 @@ export function ExercisePlanList({ planned, onUpdate, onRemove, onAdd, onMakeSup
                 </button>
               </div>
 
-              <div className="mt-2 flex gap-4">
+              <div className="mt-2 flex flex-wrap gap-4">
                 <Stepper label="Sets" value={p.targetSets} min={1} max={10} onChange={(v) => onUpdate(index, { targetSets: v })} />
                 {p.logMode === "hold" ? (
                   <Stepper
@@ -169,7 +169,7 @@ export function Stepper({
 }) {
   return (
     <div className="flex items-center gap-2">
-      <span className="text-sm text-slate-400">{label}</span>
+      <span className="whitespace-nowrap text-sm text-slate-400">{label}</span>
       <button
         onClick={() => onChange(Math.max(min, value - step))}
         className="flex h-7 w-7 items-center justify-center rounded-full bg-slate-700 text-slate-200 active:bg-slate-600"
