@@ -6,6 +6,9 @@ export interface RoutineExerciseEntry {
   targetRepsMax: number; // fixed ceiling of the working rep range
   currentTargetReps: number; // reps to aim for next session; climbs min -> max, then resets to min on a weight bump
   currentWeight: number; // 0 until the user has logged a real weight
+  logMode?: "reps" | "hold"; // undefined = reps, for back-compat with existing routines
+  targetHoldSeconds?: number; // only meaningful when logMode === "hold"
+  groupId?: string; // superset group id, shared across members
 }
 
 export interface Routine {

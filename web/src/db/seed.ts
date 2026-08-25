@@ -16,7 +16,10 @@ interface SeedExercise {
   secondaryMuscles: MuscleGroup[];
   category: ExerciseCategory;
   equipment: string[];
+  defaultLogMode?: "hold";
 }
+
+const HOLD_MODE_EXERCISE_NAMES = ["Plank", "Side Plank", "Dead Hang"];
 
 const HOME_EQUIPMENT_NAMES = new Set(["Bodyweight", "Dumbbell", "Pull-up Bar", "Resistance Band"]);
 
@@ -28,6 +31,7 @@ const HOME_EQUIPMENT_NAMES = new Set(["Bodyweight", "Dumbbell", "Pull-up Bar", "
 export async function seedIfNeeded(): Promise<void> {
   const equipmentByName = await seedEquipment();
   await seedExercises(equipmentByName);
+  await backfillHoldModeFlags();
   await seedDefaultGym(equipmentByName);
 }
 
@@ -61,8 +65,20 @@ async function seedExercises(equipmentByName: Map<string, string>): Promise<void
     category: item.category,
     equipmentIds: item.equipment.map((name) => equipmentByName.get(name)).filter((id): id is string => !!id),
     isCustom: false,
+    defaultLogMode: item.defaultLogMode,
   }));
   await db.exercises.bulkAdd(rows);
+}
+
+/**
+ * Seeding is additive-by-name and skips any exercise that already exists, so a browser that
+ * seeded Plank/Dead Hang/Side Plank before this flag existed would never pick it up from the
+ * JSON alone. Idempotent, and only ever touches this one field on exact-name matches.
+ */
+async function backfillHoldModeFlags(): Promise<void> {
+  const rows = await db.exercises.where("name").anyOf(HOLD_MODE_EXERCISE_NAMES).toArray();
+  const needsUpdate = rows.filter((row) => row.defaultLogMode !== "hold");
+  await Promise.all(needsUpdate.map((row) => db.exercises.update(row.id, { defaultLogMode: "hold" })));
 }
 
 async function seedDefaultGym(equipmentByName: Map<string, string>): Promise<void> {

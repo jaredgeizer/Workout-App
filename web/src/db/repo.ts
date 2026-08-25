@@ -7,6 +7,7 @@ import type { Profile } from "../types/profile";
 import type { ExercisePerformance, SetEntry, WorkoutSession } from "../types/workoutSession";
 import type { MuscleGroup } from "../types/muscleGroup";
 import { nextTarget } from "../domain/progression";
+import { groupTogether } from "../domain/superset";
 
 // ---- Profile ----
 
@@ -61,6 +62,9 @@ export interface PlannedExercise {
   targetSets: number;
   targetReps: number;
   targetWeight?: number;
+  logMode?: "reps" | "hold"; // undefined = reps
+  targetHoldSeconds?: number; // only meaningful when logMode === "hold"
+  groupId?: string; // superset group id, shared across members
 }
 
 /**
@@ -87,11 +91,14 @@ export async function startWorkout(
 
   plan.forEach((planned, index) => {
     const performanceId = newId();
+    const isHold = planned.logMode === "hold";
     performances.push({
       id: performanceId,
       sessionId,
       exerciseId: planned.exercise.id,
       orderIndex: index,
+      logMode: planned.logMode,
+      groupId: planned.groupId,
     });
     for (let setNumber = 1; setNumber <= planned.targetSets; setNumber++) {
       sets.push({
@@ -99,7 +106,8 @@ export async function startWorkout(
         performanceId,
         setNumber,
         weight: planned.targetWeight ?? 0,
-        reps: planned.targetReps,
+        reps: isHold ? 0 : planned.targetReps,
+        holdSeconds: isHold ? (planned.targetHoldSeconds ?? 30) : undefined,
         isCompleted: false,
       });
     }
@@ -126,7 +134,10 @@ export async function findActiveSession(): Promise<WorkoutSession | undefined> {
   return incomplete.sort((a, b) => b.date.localeCompare(a.date))[0];
 }
 
-export async function updateSet(setId: string, changes: Partial<Pick<SetEntry, "weight" | "reps" | "isCompleted" | "rpe">>): Promise<void> {
+export async function updateSet(
+  setId: string,
+  changes: Partial<Pick<SetEntry, "weight" | "reps" | "isCompleted" | "rpe" | "holdSeconds">>,
+): Promise<void> {
   await db.sets.update(setId, changes);
 }
 
@@ -139,15 +150,25 @@ export async function addExerciseToSession(
 ): Promise<void> {
   const existing = await db.performances.where("sessionId").equals(sessionId).toArray();
   const performanceId = newId();
+  const isHold = exercise.defaultLogMode === "hold";
   const performance: ExercisePerformance = {
     id: performanceId,
     sessionId,
     exerciseId: exercise.id,
     orderIndex: existing.length,
+    logMode: isHold ? "hold" : undefined,
   };
   const sets: SetEntry[] = [];
   for (let setNumber = 1; setNumber <= targetSets; setNumber++) {
-    sets.push({ id: newId(), performanceId, setNumber, weight: 0, reps: targetReps, isCompleted: false });
+    sets.push({
+      id: newId(),
+      performanceId,
+      setNumber,
+      weight: 0,
+      reps: isHold ? 0 : targetReps,
+      holdSeconds: isHold ? 30 : undefined,
+      isCompleted: false,
+    });
   }
 
   await db.transaction("rw", db.performances, db.sets, async () => {
@@ -179,6 +200,7 @@ export async function addSetToPerformance(performanceId: string): Promise<void> 
     setNumber: (lastSet?.setNumber ?? 0) + 1,
     weight: lastSet?.weight ?? 0,
     reps: lastSet?.reps ?? 10,
+    holdSeconds: lastSet?.holdSeconds,
     isCompleted: false,
   });
 }
@@ -211,6 +233,7 @@ async function applyProgressionIfApplicable(sessionId: string): Promise<void> {
   }
 
   const updatedExercises: RoutineExerciseEntry[] = routine.exercises.map((entry) => {
+    if (entry.logMode === "hold") return entry; // reps-based double progression doesn't apply
     const loggedSets = setsByExerciseId.get(entry.exerciseId);
     if (!loggedSets || loggedSets.length === 0) return entry;
 
@@ -232,6 +255,40 @@ async function applyProgressionIfApplicable(sessionId: string): Promise<void> {
   });
 
   await db.routines.update(routine.id, { exercises: updatedExercises });
+}
+
+/**
+ * Bundles 2+ existing performances in an in-progress session into a superset group,
+ * reordering them to be contiguous at the earliest member's original position — this is
+ * what lets both rendering and rotation math treat a group as one simple contiguous block.
+ */
+export async function makeSuperset(sessionId: string, performanceIds: string[]): Promise<void> {
+  const performances = await db.performances.where("sessionId").equals(sessionId).sortBy("orderIndex");
+  const idSet = new Set(performanceIds);
+  const selectedIndexes = new Set(performances.map((p, i) => (idSet.has(p.id) ? i : -1)).filter((i) => i >= 0));
+  const reordered = groupTogether(performances, selectedIndexes);
+  const groupId = newId();
+
+  await db.transaction("rw", db.performances, async () => {
+    await Promise.all(
+      reordered.map((p, index) =>
+        db.performances.update(p.id, {
+          orderIndex: index,
+          groupId: idSet.has(p.id) ? groupId : p.groupId,
+        }),
+      ),
+    );
+  });
+}
+
+/** Removes the grouping; members keep their current positions. */
+export async function disbandSuperset(sessionId: string, groupId: string): Promise<void> {
+  const members = await db.performances
+    .where("sessionId")
+    .equals(sessionId)
+    .filter((p) => p.groupId === groupId)
+    .toArray();
+  await Promise.all(members.map((p) => db.performances.update(p.id, { groupId: undefined })));
 }
 
 export async function discardWorkout(sessionId: string): Promise<void> {
@@ -271,6 +328,9 @@ export async function saveAsRoutine(
       targetRepsMax: planned.targetReps,
       currentTargetReps: planned.targetReps,
       currentWeight: planned.targetWeight ?? 0,
+      logMode: planned.logMode,
+      targetHoldSeconds: planned.targetHoldSeconds,
+      groupId: planned.groupId,
     })),
   };
   await db.routines.add(routine);
@@ -310,6 +370,9 @@ export async function loadPlannedExercisesFromRoutine(routineId: string): Promis
       targetSets: entry.targetSets,
       targetReps: entry.currentTargetReps,
       targetWeight: entry.currentWeight,
+      logMode: entry.logMode,
+      targetHoldSeconds: entry.targetHoldSeconds,
+      groupId: entry.groupId,
     });
   });
   return planned;

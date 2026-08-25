@@ -1,16 +1,37 @@
 import { useState } from "react";
 import { useLiveQuery } from "dexie-react-hooks";
-import { db } from "../../db/schema";
+import { db, newId } from "../../db/schema";
 import type { RoutineExerciseEntry } from "../../types/routine";
 import type { Exercise } from "../../types/exercise";
 import { renameRoutine, setRoutineSmartAdjust, updateRoutineExercises, deleteRoutine } from "../../db/repo";
+import { groupTogether } from "../../domain/superset";
 import { ExercisePicker } from "../workout/ExercisePicker";
 import { Stepper } from "../workout/ExercisePlanList";
+import { SupersetSelectBar } from "../workout/SupersetSelectBar";
 
 interface Props {
   routineId: string;
   onBack: () => void;
   onStart: (routineId: string) => void;
+}
+
+interface Block {
+  groupId: string | undefined;
+  items: { entry: RoutineExerciseEntry; index: number }[];
+}
+
+/** Groups consecutive same-groupId entries into one visual block. */
+function toBlocks(exercises: RoutineExerciseEntry[]): Block[] {
+  const blocks: Block[] = [];
+  exercises.forEach((entry, index) => {
+    const last = blocks[blocks.length - 1];
+    if (entry.groupId && last?.groupId === entry.groupId) {
+      last.items.push({ entry, index });
+    } else {
+      blocks.push({ groupId: entry.groupId, items: [{ entry, index }] });
+    }
+  });
+  return blocks;
 }
 
 export function RoutineDetail({ routineId, onBack, onStart }: Props) {
@@ -20,6 +41,8 @@ export function RoutineDetail({ routineId, onBack, onStart }: Props) {
     [routine],
   );
   const [isPicking, setIsPicking] = useState(false);
+  const [selectMode, setSelectMode] = useState(false);
+  const [selectedIndexes, setSelectedIndexes] = useState<Set<number>>(new Set());
 
   if (!routine) {
     return (
@@ -42,7 +65,34 @@ export function RoutineDetail({ routineId, onBack, onStart }: Props) {
     void updateRoutineExercises(routineId, next);
   }
 
+  function toggleSelected(index: number) {
+    setSelectedIndexes((prev) => {
+      const next = new Set(prev);
+      if (next.has(index)) next.delete(index);
+      else next.add(index);
+      return next;
+    });
+  }
+
+  function makeSuperset() {
+    const groupId = newId();
+    const selectedEntries = new Set([...selectedIndexes].map((i) => currentRoutine.exercises[i]));
+    const reordered = groupTogether(currentRoutine.exercises, selectedIndexes).map((entry) =>
+      selectedEntries.has(entry) ? { ...entry, groupId } : entry,
+    );
+    const reindexed = reordered.map((entry, index) => ({ ...entry, orderIndex: index }));
+    void updateRoutineExercises(routineId, reindexed);
+    setSelectMode(false);
+    setSelectedIndexes(new Set());
+  }
+
+  function disbandSuperset(groupId: string) {
+    const next = currentRoutine.exercises.map((entry) => (entry.groupId === groupId ? { ...entry, groupId: undefined } : entry));
+    void updateRoutineExercises(routineId, next);
+  }
+
   function addEntry(exercise: Exercise) {
+    const isHold = exercise.defaultLogMode === "hold";
     const entry: RoutineExerciseEntry = {
       exerciseId: exercise.id,
       orderIndex: currentRoutine.exercises.length,
@@ -51,6 +101,8 @@ export function RoutineDetail({ routineId, onBack, onStart }: Props) {
       targetRepsMax: 10,
       currentTargetReps: 10,
       currentWeight: 0,
+      logMode: isHold ? "hold" : "reps",
+      targetHoldSeconds: isHold ? 30 : undefined,
     };
     void updateRoutineExercises(routineId, [...currentRoutine.exercises, entry]);
     setIsPicking(false);
@@ -99,60 +151,138 @@ export function RoutineDetail({ routineId, onBack, onStart }: Props) {
       </button>
 
       <div>
-        <h2 className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">Exercises</h2>
+        <div className="mb-2 flex items-center justify-between">
+          <h2 className="text-xs font-semibold uppercase tracking-wide text-slate-500">Exercises</h2>
+          <SupersetSelectBar
+            selectMode={selectMode}
+            selectedCount={selectedIndexes.size}
+            onEnterSelectMode={() => setSelectMode(true)}
+            onCancel={() => {
+              setSelectMode(false);
+              setSelectedIndexes(new Set());
+            }}
+            onMakeSuperset={makeSuperset}
+          />
+        </div>
         <div className="flex flex-col gap-2">
-          {routine.exercises.map((entry, index) => (
-            <div key={`${entry.exerciseId}-${index}`} className="rounded-xl bg-slate-800 p-3">
-              <div className="flex items-start justify-between">
-                <span className="font-medium text-slate-100">
-                  {exerciseById.get(entry.exerciseId)?.name ?? "Exercise"}
-                </span>
-                <button onClick={() => removeEntry(index)} className="text-slate-500 active:text-red-400">
-                  ✕
-                </button>
+          {toBlocks(routine.exercises).map((block) => {
+            const cards = block.items.map(({ entry, index }) => (
+              <div key={`${entry.exerciseId}-${index}`} className="rounded-xl bg-slate-800 p-3">
+                <div className="flex items-start justify-between">
+                  <div className="flex items-center gap-2">
+                    {selectMode && !entry.groupId && (
+                      <input
+                        type="checkbox"
+                        checked={selectedIndexes.has(index)}
+                        onChange={() => toggleSelected(index)}
+                        className="h-4 w-4 accent-sky-500"
+                      />
+                    )}
+                    <span className="font-medium text-slate-100">
+                      {exerciseById.get(entry.exerciseId)?.name ?? "Exercise"}
+                    </span>
+                  </div>
+                  <button onClick={() => removeEntry(index)} className="text-slate-500 active:text-red-400">
+                    ✕
+                  </button>
+                </div>
+
+                <div className="mt-2 flex gap-2">
+                  <button
+                    onClick={() => updateEntry(index, { logMode: "reps" })}
+                    className={`rounded-lg px-3 py-1 text-xs font-medium ${
+                      entry.logMode !== "hold" ? "bg-sky-500 text-slate-950" : "bg-slate-700 text-slate-300"
+                    }`}
+                  >
+                    Reps
+                  </button>
+                  <button
+                    onClick={() => updateEntry(index, { logMode: "hold", targetHoldSeconds: entry.targetHoldSeconds ?? 30 })}
+                    className={`rounded-lg px-3 py-1 text-xs font-medium ${
+                      entry.logMode === "hold" ? "bg-sky-500 text-slate-950" : "bg-slate-700 text-slate-300"
+                    }`}
+                  >
+                    Hold
+                  </button>
+                </div>
+
+                <div className="mt-2 flex flex-wrap gap-4">
+                  <Stepper
+                    label="Sets"
+                    value={entry.targetSets}
+                    min={1}
+                    max={10}
+                    onChange={(v) => updateEntry(index, { targetSets: v })}
+                  />
+                  {entry.logMode === "hold" ? (
+                    <Stepper
+                      label="Hold (s)"
+                      value={entry.targetHoldSeconds ?? 30}
+                      min={5}
+                      max={300}
+                      step={5}
+                      onChange={(v) => updateEntry(index, { targetHoldSeconds: v })}
+                    />
+                  ) : (
+                    <>
+                      <Stepper
+                        label="Min Reps"
+                        value={entry.targetRepsMin}
+                        min={1}
+                        max={entry.targetRepsMax}
+                        onChange={(v) =>
+                          updateEntry(index, {
+                            targetRepsMin: v,
+                            currentTargetReps: Math.min(Math.max(entry.currentTargetReps, v), entry.targetRepsMax),
+                          })
+                        }
+                      />
+                      <Stepper
+                        label="Max Reps"
+                        value={entry.targetRepsMax}
+                        min={entry.targetRepsMin}
+                        max={30}
+                        onChange={(v) => updateEntry(index, { targetRepsMax: v })}
+                      />
+                    </>
+                  )}
+                </div>
+                <div className="mt-2 flex items-center gap-2">
+                  <span className="text-sm text-slate-400">Weight</span>
+                  <input
+                    type="number"
+                    inputMode="decimal"
+                    value={entry.currentWeight === 0 ? "" : entry.currentWeight}
+                    placeholder="0"
+                    onChange={(e) => updateEntry(index, { currentWeight: Number(e.target.value) || 0 })}
+                    className="w-20 rounded-lg bg-slate-900 px-2 py-1.5 text-center text-slate-100 outline-none ring-1 ring-slate-700 focus:ring-sky-500"
+                  />
+                  {entry.logMode === "hold" ? (
+                    <span className="text-xs text-slate-500">lb</span>
+                  ) : (
+                    <span className="text-xs text-slate-500">lb, next target {entry.currentTargetReps} reps</span>
+                  )}
+                </div>
               </div>
-              <div className="mt-2 flex flex-wrap gap-4">
-                <Stepper
-                  label="Sets"
-                  value={entry.targetSets}
-                  min={1}
-                  max={10}
-                  onChange={(v) => updateEntry(index, { targetSets: v })}
-                />
-                <Stepper
-                  label="Min Reps"
-                  value={entry.targetRepsMin}
-                  min={1}
-                  max={entry.targetRepsMax}
-                  onChange={(v) =>
-                    updateEntry(index, {
-                      targetRepsMin: v,
-                      currentTargetReps: Math.min(Math.max(entry.currentTargetReps, v), entry.targetRepsMax),
-                    })
-                  }
-                />
-                <Stepper
-                  label="Max Reps"
-                  value={entry.targetRepsMax}
-                  min={entry.targetRepsMin}
-                  max={30}
-                  onChange={(v) => updateEntry(index, { targetRepsMax: v })}
-                />
+            ));
+
+            if (!block.groupId) return cards[0];
+
+            return (
+              <div key={block.groupId} className="flex flex-col gap-2 rounded-xl p-2 ring-2 ring-amber-500/40">
+                <div className="flex items-center justify-between px-1">
+                  <span className="text-xs font-semibold uppercase tracking-wide text-amber-400">Superset</span>
+                  <button
+                    onClick={() => disbandSuperset(block.groupId!)}
+                    className="text-xs font-medium text-slate-500 active:text-red-400"
+                  >
+                    Ungroup
+                  </button>
+                </div>
+                {cards}
               </div>
-              <div className="mt-2 flex items-center gap-2">
-                <span className="text-sm text-slate-400">Weight</span>
-                <input
-                  type="number"
-                  inputMode="decimal"
-                  value={entry.currentWeight === 0 ? "" : entry.currentWeight}
-                  placeholder="0"
-                  onChange={(e) => updateEntry(index, { currentWeight: Number(e.target.value) || 0 })}
-                  className="w-20 rounded-lg bg-slate-900 px-2 py-1.5 text-center text-slate-100 outline-none ring-1 ring-slate-700 focus:ring-sky-500"
-                />
-                <span className="text-xs text-slate-500">lb, next target {entry.currentTargetReps} reps</span>
-              </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
 
         <button

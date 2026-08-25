@@ -12,6 +12,8 @@ export interface Exercise {
   instructions?: string;
   equipmentIds: string[];
   isCustom: boolean;
+  /** Absence means "reps"; this only ever flags an exercise that defaults to a timed hold. */
+  defaultLogMode?: "hold";
 }
 
 export function exerciseAllMuscles(exercise: Exercise): MuscleGroup[] {

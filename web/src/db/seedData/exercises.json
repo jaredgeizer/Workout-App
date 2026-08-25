@@ -11,7 +11,7 @@
 
   { "name": "Pull Up", "primaryMuscles": ["lats"], "secondaryMuscles": ["back", "biceps", "forearms"], "category": "compound", "equipment": ["Pull-up Bar"] },
   { "name": "Chin Up", "primaryMuscles": ["lats"], "secondaryMuscles": ["biceps", "back"], "category": "compound", "equipment": ["Pull-up Bar"] },
-  { "name": "Dead Hang", "primaryMuscles": ["forearms", "lats"], "secondaryMuscles": ["shoulders", "traps"], "category": "isolation", "equipment": ["Pull-up Bar"] },
+  { "name": "Dead Hang", "primaryMuscles": ["forearms", "lats"], "secondaryMuscles": ["shoulders", "traps"], "category": "isolation", "equipment": ["Pull-up Bar"], "defaultLogMode": "hold" },
   { "name": "Lat Pulldown", "primaryMuscles": ["lats"], "secondaryMuscles": ["back", "biceps"], "category": "compound", "equipment": ["Lat Pulldown Machine"] },
   { "name": "Barbell Bent Over Row", "primaryMuscles": ["back"], "secondaryMuscles": ["lats", "biceps", "lowerBack"], "category": "compound", "equipment": ["Barbell"] },
   { "name": "Dumbbell Row", "primaryMuscles": ["back"], "secondaryMuscles": ["lats", "biceps"], "category": "compound", "equipment": ["Dumbbell", "Flat Bench"] },
@@ -52,7 +52,7 @@
   { "name": "Triceps Dip", "primaryMuscles": ["triceps"], "secondaryMuscles": ["chest", "shoulders"], "category": "compound", "equipment": ["Dip Station"] },
   { "name": "Dumbbell Wrist Curl", "primaryMuscles": ["forearms"], "secondaryMuscles": [], "category": "isolation", "equipment": ["Dumbbell"] },
 
-  { "name": "Plank", "primaryMuscles": ["abs"], "secondaryMuscles": ["lowerBack", "shoulders"], "category": "isolation", "equipment": ["Bodyweight"] },
+  { "name": "Plank", "primaryMuscles": ["abs"], "secondaryMuscles": ["lowerBack", "shoulders"], "category": "isolation", "equipment": ["Bodyweight"], "defaultLogMode": "hold" },
   { "name": "Crunch", "primaryMuscles": ["abs"], "secondaryMuscles": [], "category": "isolation", "equipment": ["Bodyweight"] },
   { "name": "Cable Crunch", "primaryMuscles": ["abs"], "secondaryMuscles": [], "category": "isolation", "equipment": ["Cable Machine"] },
   { "name": "Hanging Leg Raise", "primaryMuscles": ["abs"], "secondaryMuscles": ["obliques", "forearms"], "category": "compound", "equipment": ["Pull-up Bar"] },
@@ -60,7 +60,7 @@
   { "name": "Cable Woodchopper", "primaryMuscles": ["obliques"], "secondaryMuscles": ["abs"], "category": "isolation", "equipment": ["Cable Machine"] },
   { "name": "Back Extension", "primaryMuscles": ["lowerBack"], "secondaryMuscles": ["glutes", "hamstrings"], "category": "isolation", "equipment": ["Bodyweight"] },
   { "name": "Superman", "primaryMuscles": ["lowerBack"], "secondaryMuscles": ["glutes"], "category": "isolation", "equipment": ["Bodyweight"] },
-  { "name": "Side Plank", "primaryMuscles": ["obliques"], "secondaryMuscles": ["abs"], "category": "isolation", "equipment": ["Bodyweight"] },
+  { "name": "Side Plank", "primaryMuscles": ["obliques"], "secondaryMuscles": ["abs"], "category": "isolation", "equipment": ["Bodyweight"], "defaultLogMode": "hold" },
   { "name": "Bird Dog", "primaryMuscles": ["abs", "lowerBack"], "secondaryMuscles": ["glutes"], "category": "isolation", "equipment": ["Bodyweight"] },
   { "name": "Dead Bug", "primaryMuscles": ["abs"], "secondaryMuscles": ["obliques"], "category": "isolation", "equipment": ["Bodyweight"] },
 

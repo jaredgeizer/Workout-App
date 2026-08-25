@@ -3,23 +3,55 @@ import { useLiveQuery } from "dexie-react-hooks";
 import {
   addExerciseToSession,
   addSetToPerformance,
+  disbandSuperset,
   discardWorkout,
   finishWorkout,
   loadSessionDetail,
+  makeSuperset,
   swapExerciseInPerformance,
   updateSet,
   type PerformanceDetail,
 } from "../../db/repo";
+import { advanceSupersetRotation, type SupersetGroupMember } from "../../domain/superset";
 import type { Exercise } from "../../types/exercise";
 import type { SetEntry } from "../../types/workoutSession";
 import { ExercisePicker } from "./ExercisePicker";
 import { ExerciseSwapPicker } from "./ExerciseSwapPicker";
+import { HoldStopwatch } from "./HoldStopwatch";
 import { RestTimer } from "./RestTimer";
+import { SupersetSelectBar } from "./SupersetSelectBar";
+import { formatElapsed } from "./formatTime";
 import { unlockAudio } from "./beep";
 
 const REST_DURATION_MS = 90_000;
 
 type SetStatus = "completed" | "active" | "pending";
+
+interface Block {
+  groupId: string | undefined;
+  members: PerformanceDetail[];
+}
+
+/** Groups consecutive same-groupId performances into one visual block. Cheap linear pass since
+ * makeSuperset() already keeps a group's members contiguous by orderIndex. */
+function toBlocks(performances: PerformanceDetail[]): Block[] {
+  const blocks: Block[] = [];
+  for (const p of performances) {
+    const groupId = p.performance.groupId;
+    const last = blocks[blocks.length - 1];
+    if (groupId && last?.groupId === groupId) {
+      last.members.push(p);
+    } else {
+      blocks.push({ groupId, members: [p] });
+    }
+  }
+  return blocks;
+}
+
+function defaultFocus(members: PerformanceDetail[]): string {
+  const firstIncomplete = members.find((m) => m.sets.some((set) => !set.isCompleted));
+  return (firstIncomplete ?? members[0]).performance.id;
+}
 
 interface Props {
   sessionId: string;
@@ -33,6 +65,9 @@ export function ActiveWorkout({ sessionId, onDone }: Props) {
   const [swappingPerformance, setSwappingPerformance] = useState<PerformanceDetail | null>(null);
   const [restEndsAt, setRestEndsAt] = useState<number | null>(null);
   const [now, setNow] = useState(Date.now());
+  const [groupFocus, setGroupFocus] = useState<Record<string, string>>({});
+  const [selectMode, setSelectMode] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     const interval = setInterval(() => setNow(Date.now()), 1000);
@@ -53,10 +88,32 @@ export function ActiveWorkout({ sessionId, onDone }: Props) {
     onDone();
   }
 
-  async function handleLogSet(set: SetEntry) {
+  /** Writes the set, then — only if it belongs to a superset group — advances whose turn it is
+   * and decides whether a full round just completed (the only time the group's rest timer fires). */
+  async function logSet(
+    members: PerformanceDetail[] | undefined,
+    performance: PerformanceDetail,
+    set: SetEntry,
+    extra?: Partial<Pick<SetEntry, "reps" | "weight" | "holdSeconds">>,
+  ) {
     unlockAudio();
-    await updateSet(set.id, { isCompleted: true });
-    setRestEndsAt(Date.now() + REST_DURATION_MS);
+    await updateSet(set.id, { ...extra, isCompleted: true });
+
+    const groupId = performance.performance.groupId;
+    if (!groupId || !members) {
+      setRestEndsAt(Date.now() + REST_DURATION_MS);
+      return;
+    }
+
+    const groupMembers: SupersetGroupMember[] = members.map((m) => {
+      const completedSets =
+        m.sets.filter((s) => s.isCompleted).length + (m.performance.id === performance.performance.id ? 1 : 0);
+      return { performanceId: m.performance.id, completedSets, totalSets: m.sets.length };
+    });
+
+    const { nextPerformanceId, roundCompleted } = advanceSupersetRotation(groupMembers, performance.performance.id);
+    if (nextPerformanceId) setGroupFocus((prev) => ({ ...prev, [groupId]: nextPerformanceId }));
+    if (roundCompleted) setRestEndsAt(Date.now() + REST_DURATION_MS);
   }
 
   async function handleUndoSet(set: SetEntry) {
@@ -76,6 +133,21 @@ export function ActiveWorkout({ sessionId, onDone }: Props) {
     if (!swappingPerformance) return;
     await swapExerciseInPerformance(swappingPerformance.performance.id, exercise);
     setSwappingPerformance(null);
+  }
+
+  function toggleSelected(performanceId: string) {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(performanceId)) next.delete(performanceId);
+      else next.add(performanceId);
+      return next;
+    });
+  }
+
+  async function handleMakeSuperset() {
+    await makeSuperset(sessionId, [...selectedIds]);
+    setSelectMode(false);
+    setSelectedIds(new Set());
   }
 
   if (!detail) {
@@ -106,61 +178,126 @@ export function ActiveWorkout({ sessionId, onDone }: Props) {
       </div>
 
       <div className="flex-1 overflow-y-auto p-4 pb-24">
+        <div className="mb-2 flex justify-end">
+          <SupersetSelectBar
+            selectMode={selectMode}
+            selectedCount={selectedIds.size}
+            onEnterSelectMode={() => setSelectMode(true)}
+            onCancel={() => {
+              setSelectMode(false);
+              setSelectedIds(new Set());
+            }}
+            onMakeSuperset={() => void handleMakeSuperset()}
+          />
+        </div>
+
         <div className="flex flex-col gap-4">
-          {detail.performances.map((p) => {
-            const canSwap = p.sets.every((set) => !set.isCompleted);
-            const sortedSets = [...p.sets].sort((a, b) => a.setNumber - b.setNumber);
-            const activeIndex = sortedSets.findIndex((set) => !set.isCompleted);
-            const isExerciseLogged = activeIndex === -1;
-            const isFinalSet = activeIndex === sortedSets.length - 1;
+          {toBlocks(detail.performances).map((block) => {
+            const focusedId = block.groupId ? (groupFocus[block.groupId] ?? defaultFocus(block.members)) : undefined;
 
-            return (
-              <div key={p.performance.id} className="rounded-xl bg-slate-800 p-3">
-                <div className="mb-2 flex items-center justify-between">
-                  <h2 className="font-medium text-slate-100">{p.exercise?.name ?? "Exercise"}</h2>
-                  {canSwap && p.exercise && (
-                    <button
-                      onClick={() => setSwappingPerformance(p)}
-                      className="text-xs font-medium text-sky-400 active:text-sky-300"
-                    >
-                      Swap
-                    </button>
-                  )}
-                </div>
+            const cards = block.members.map((p) => {
+              const canAct = !block.groupId || p.performance.id === focusedId;
+              const canSwap = p.sets.every((set) => !set.isCompleted);
+              const isHoldMode = p.performance.logMode === "hold";
+              const sortedSets = [...p.sets].sort((a, b) => a.setNumber - b.setNumber);
+              const activeIndex = sortedSets.findIndex((set) => !set.isCompleted);
+              const isExerciseLogged = activeIndex === -1;
+              const isFinalSet = activeIndex === sortedSets.length - 1;
 
-                <div className="flex flex-col gap-2">
-                  {sortedSets.map((set, index) => {
-                    // Derived from each set's own isCompleted rather than its position, so
-                    // undoing an earlier set while a later one is still logged (a "hole" in
-                    // the sequence) still shows the later set as completed, not pending.
-                    const status: SetStatus = set.isCompleted ? "completed" : index === activeIndex ? "active" : "pending";
-                    return <SetRow key={set.id} set={set} status={status} onUndo={() => void handleUndoSet(set)} />;
-                  })}
-                </div>
-
-                <div className="mt-3 flex items-center gap-3">
-                  <button
-                    onClick={() => void handleAddSet(p.performance.id)}
-                    className="text-xs font-medium text-sky-400 active:text-sky-300"
-                  >
-                    + Add Set
-                  </button>
-
-                  <div className="ml-auto">
-                    {isExerciseLogged ? (
-                      <span className="rounded-lg bg-emerald-500/15 px-3 py-1.5 text-sm font-medium text-emerald-400">
-                        ✓ Exercise Complete
-                      </span>
-                    ) : (
-                      <button
-                        onClick={() => void handleLogSet(sortedSets[activeIndex])}
-                        className="rounded-lg bg-sky-500 px-4 py-1.5 text-sm font-semibold text-slate-950 active:bg-sky-400"
+              return (
+                <div key={p.performance.id} className="rounded-xl bg-slate-800 p-3">
+                  <div className="mb-2 flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      {selectMode && !p.performance.groupId && (
+                        <input
+                          type="checkbox"
+                          checked={selectedIds.has(p.performance.id)}
+                          onChange={() => toggleSelected(p.performance.id)}
+                          className="h-4 w-4 accent-sky-500"
+                        />
+                      )}
+                      <h2
+                        onClick={
+                          block.groupId ? () => setGroupFocus((prev) => ({ ...prev, [block.groupId!]: p.performance.id })) : undefined
+                        }
+                        className={`font-medium text-slate-100 ${block.groupId ? "cursor-pointer" : ""}`}
                       >
-                        {isFinalSet ? "Log Exercise" : "Log Set"}
+                        {p.exercise?.name ?? "Exercise"}
+                      </h2>
+                    </div>
+                    {canSwap && p.exercise && (
+                      <button
+                        onClick={() => setSwappingPerformance(p)}
+                        className="text-xs font-medium text-sky-400 active:text-sky-300"
+                      >
+                        Swap
                       </button>
                     )}
                   </div>
+
+                  <div className="flex flex-col gap-2">
+                    {sortedSets.map((set, index) => {
+                      // Derived from each set's own isCompleted rather than its position, so
+                      // undoing an earlier set while a later one is still logged (a "hole" in
+                      // the sequence) still shows the later set as completed, not pending.
+                      const status: SetStatus = set.isCompleted ? "completed" : index === activeIndex ? "active" : "pending";
+                      return (
+                        <SetRow
+                          key={set.id}
+                          set={set}
+                          status={status}
+                          isHoldMode={isHoldMode}
+                          canAct={canAct}
+                          onUndo={() => void handleUndoSet(set)}
+                          onLogHold={(holdSeconds) => void logSet(block.groupId ? block.members : undefined, p, set, { holdSeconds })}
+                        />
+                      );
+                    })}
+                  </div>
+
+                  <div className="mt-3 flex items-center gap-3">
+                    <button
+                      onClick={() => void handleAddSet(p.performance.id)}
+                      className="text-xs font-medium text-sky-400 active:text-sky-300"
+                    >
+                      + Add Set
+                    </button>
+
+                    <div className="ml-auto">
+                      {isExerciseLogged ? (
+                        <span className="rounded-lg bg-emerald-500/15 px-3 py-1.5 text-sm font-medium text-emerald-400">
+                          ✓ Exercise Complete
+                        </span>
+                      ) : isHoldMode ? null : !canAct ? (
+                        <span className="rounded-lg bg-slate-700 px-3 py-1.5 text-sm text-slate-400">Up next</span>
+                      ) : (
+                        <button
+                          onClick={() => void logSet(block.groupId ? block.members : undefined, p, sortedSets[activeIndex])}
+                          className="rounded-lg bg-sky-500 px-4 py-1.5 text-sm font-semibold text-slate-950 active:bg-sky-400"
+                        >
+                          {isFinalSet ? "Log Exercise" : "Log Set"}
+                        </button>
+                      )}
+                    </div>
+                  </div>
                 </div>
+              );
+            });
+
+            if (!block.groupId) return cards[0];
+
+            return (
+              <div key={block.groupId} className="flex flex-col gap-2 rounded-xl p-2 ring-2 ring-amber-500/40">
+                <div className="flex items-center justify-between px-1">
+                  <span className="text-xs font-semibold uppercase tracking-wide text-amber-400">Superset</span>
+                  <button
+                    onClick={() => void disbandSuperset(sessionId, block.groupId!)}
+                    className="text-xs font-medium text-slate-500 active:text-red-400"
+                  >
+                    Ungroup
+                  </button>
+                </div>
+                {cards}
               </div>
             );
           })}
@@ -208,17 +345,21 @@ export function ActiveWorkout({ sessionId, onDone }: Props) {
   );
 }
 
-function formatElapsed(totalSeconds: number): string {
-  const hours = Math.floor(totalSeconds / 3600);
-  const minutes = Math.floor((totalSeconds % 3600) / 60);
-  const seconds = totalSeconds % 60;
-  if (hours > 0) {
-    return `${hours}:${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
-  }
-  return `${minutes}:${String(seconds).padStart(2, "0")}`;
-}
-
-function SetRow({ set, status, onUndo }: { set: SetEntry; status: SetStatus; onUndo: () => void }) {
+function SetRow({
+  set,
+  status,
+  isHoldMode,
+  canAct,
+  onUndo,
+  onLogHold,
+}: {
+  set: SetEntry;
+  status: SetStatus;
+  isHoldMode: boolean;
+  canAct: boolean;
+  onUndo: () => void;
+  onLogHold: (holdSeconds: number) => void;
+}) {
   return (
     <div className={`flex items-center gap-2 ${status === "pending" ? "opacity-40" : "opacity-100"}`}>
       <span className={`w-10 text-sm ${status === "completed" ? "text-emerald-400" : "text-slate-400"}`}>
@@ -235,15 +376,28 @@ function SetRow({ set, status, onUndo }: { set: SetEntry; status: SetStatus; onU
       />
       <span className="text-xs text-slate-500">lb</span>
 
-      <input
-        type="number"
-        inputMode="numeric"
-        value={set.reps === 0 ? "" : set.reps}
-        placeholder="0"
-        onChange={(e) => void updateSet(set.id, { reps: Number(e.target.value) || 0 })}
-        className="w-14 rounded-lg bg-slate-900 px-2 py-1.5 text-center text-slate-100 outline-none ring-1 ring-slate-700 focus:ring-sky-500"
-      />
-      <span className="text-xs text-slate-500">reps</span>
+      {isHoldMode ? (
+        status === "active" && canAct ? (
+          <HoldStopwatch initialSeconds={set.holdSeconds ?? 30} onComplete={onLogHold} />
+        ) : (
+          <span className="w-24 text-center text-sm tabular-nums text-slate-400">
+            {status === "completed" ? formatElapsed(set.holdSeconds ?? 0) : formatElapsed(set.holdSeconds ?? 30)}
+            {status === "active" ? " · up next" : ""}
+          </span>
+        )
+      ) : (
+        <>
+          <input
+            type="number"
+            inputMode="numeric"
+            value={set.reps === 0 ? "" : set.reps}
+            placeholder="0"
+            onChange={(e) => void updateSet(set.id, { reps: Number(e.target.value) || 0 })}
+            className="w-14 rounded-lg bg-slate-900 px-2 py-1.5 text-center text-slate-100 outline-none ring-1 ring-slate-700 focus:ring-sky-500"
+          />
+          <span className="text-xs text-slate-500">reps</span>
+        </>
+      )}
 
       {status === "completed" ? (
         <button

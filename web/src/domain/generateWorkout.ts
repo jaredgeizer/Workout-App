@@ -12,6 +12,7 @@ const MINUTES_PER_SET = 3;
 const DEFAULT_SETS_PER_EXERCISE = 3;
 const DEFAULT_REPS_MIN = 8;
 const DEFAULT_REPS_MAX = 12;
+const DEFAULT_HOLD_SECONDS = 30;
 
 export interface GenerateWorkoutOptions {
   gymId?: string;
@@ -77,6 +78,20 @@ export async function generateWorkout({ gymId, durationMinutes }: GenerateWorkou
   const planned: PlannedExercise[] = [];
   for (const exercise of selected) {
     const history = await mostRecentCompletedSets(exercise.id);
+
+    if (exercise.defaultLogMode === "hold") {
+      const lastHold = history?.sets.find((set) => set.holdSeconds !== undefined)?.holdSeconds;
+      planned.push({
+        exercise,
+        targetSets: DEFAULT_SETS_PER_EXERCISE,
+        targetReps: 0,
+        logMode: "hold",
+        targetHoldSeconds: lastHold ?? DEFAULT_HOLD_SECONDS,
+        targetWeight: history?.weight ?? 0,
+      });
+      continue;
+    }
+
     if (!history) {
       planned.push({ exercise, targetSets: DEFAULT_SETS_PER_EXERCISE, targetReps: DEFAULT_REPS_MIN, targetWeight: 0 });
       continue;

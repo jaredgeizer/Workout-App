@@ -1,8 +1,9 @@
 import { useState } from "react";
 import { useLiveQuery } from "dexie-react-hooks";
-import { db } from "../../db/schema";
+import { db, newId } from "../../db/schema";
 import type { Exercise } from "../../types/exercise";
 import { startWorkout, saveAsRoutine, type PlannedExercise } from "../../db/repo";
+import { groupTogether } from "../../domain/superset";
 import { ExercisePicker } from "./ExercisePicker";
 import { ExercisePlanList } from "./ExercisePlanList";
 
@@ -28,7 +29,17 @@ export function BuildWorkout({ onCancel, onStarted, initialPlan, initialGymId, r
   const selectedGym = gyms.find((g) => g.id === gymId);
 
   function addExercise(exercise: Exercise) {
-    setPlanned((prev) => [...prev, { exercise, targetSets: 3, targetReps: 10 }]);
+    const isHold = exercise.defaultLogMode === "hold";
+    setPlanned((prev) => [
+      ...prev,
+      {
+        exercise,
+        targetSets: 3,
+        targetReps: 10,
+        logMode: isHold ? "hold" : "reps",
+        targetHoldSeconds: isHold ? 30 : undefined,
+      },
+    ]);
     setIsPicking(false);
   }
 
@@ -38,6 +49,19 @@ export function BuildWorkout({ onCancel, onStarted, initialPlan, initialGymId, r
 
   function removePlanned(index: number) {
     setPlanned((prev) => prev.filter((_, i) => i !== index));
+  }
+
+  function makeSupersetLocal(indexes: number[]) {
+    setPlanned((prev) => {
+      const groupId = newId();
+      const selected = new Set(indexes);
+      const selectedItems = new Set(indexes.map((i) => prev[i]));
+      return groupTogether(prev, selected).map((p) => (selectedItems.has(p) ? { ...p, groupId } : p));
+    });
+  }
+
+  function disbandSupersetLocal(groupId: string) {
+    setPlanned((prev) => prev.map((p) => (p.groupId === groupId ? { ...p, groupId: undefined } : p)));
   }
 
   async function handleStart() {
@@ -99,6 +123,8 @@ export function BuildWorkout({ onCancel, onStarted, initialPlan, initialGymId, r
           onUpdate={updatePlanned}
           onRemove={removePlanned}
           onAdd={() => setIsPicking(true)}
+          onMakeSuperset={makeSupersetLocal}
+          onDisbandSuperset={disbandSupersetLocal}
         />
 
         <div className="mt-4 border-t border-slate-800 pt-4">

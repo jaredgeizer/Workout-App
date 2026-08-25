@@ -13,6 +13,8 @@ export interface ExercisePerformance {
   sessionId: string;
   exerciseId: string;
   orderIndex: number;
+  logMode?: "reps" | "hold"; // undefined = reps; snapshotted at creation like weight/reps targets are
+  groupId?: string; // superset group id, shared across members
 }
 
 export interface SetEntry {
@@ -21,10 +23,13 @@ export interface SetEntry {
   setNumber: number;
   weight: number;
   reps: number;
+  holdSeconds?: number; // prefilled from target, overwritten with actual on Stop; unused for reps sets
   rpe?: number;
   isCompleted: boolean;
 }
 
 export function setVolume(set: SetEntry): number {
-  return set.isCompleted ? set.weight * set.reps : 0;
+  if (!set.isCompleted) return 0;
+  if (set.holdSeconds !== undefined) return 0; // time-under-tension isn't rep-volume
+  return set.weight * set.reps;
 }
