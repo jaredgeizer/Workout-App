@@ -12,6 +12,12 @@ export default defineConfig({
     VitePWA({
       registerType: 'autoUpdate',
       includeAssets: ['favicon.svg'],
+      workbox: {
+        // Extends the default (js/css/html/svg/png/ico) to also precache the curated
+        // exercise photos — and gif/webp, ready for an animated exercise down the line —
+        // so they're still available with no signal at the gym.
+        globPatterns: ['**/*.{js,css,html,svg,png,ico,jpg,jpeg,gif,webp}'],
+      },
       manifest: {
         name: 'Workout',
         short_name: 'Workout',
