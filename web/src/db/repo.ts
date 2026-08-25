@@ -289,6 +289,12 @@ export async function makeSuperset(sessionId: string, performanceIds: string[]):
   });
 }
 
+/** Persists a full reorder of a session's exercises (new orderIndex for every performance);
+ * superset membership (groupId) is untouched. */
+export async function reorderPerformances(orderedPerformanceIds: string[]): Promise<void> {
+  await Promise.all(orderedPerformanceIds.map((id, index) => db.performances.update(id, { orderIndex: index })));
+}
+
 /** Removes the grouping; members keep their current positions. */
 export async function disbandSuperset(sessionId: string, groupId: string): Promise<void> {
   const members = await db.performances

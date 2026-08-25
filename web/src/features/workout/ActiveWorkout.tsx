@@ -9,10 +9,12 @@ import {
   finishWorkout,
   loadSessionDetail,
   makeSuperset,
+  reorderPerformances,
   swapExerciseInPerformance,
   updateSet,
   type PerformanceDetail,
 } from "../../db/repo";
+import { blockRange, moveBlock, moveWithinGroup } from "../../domain/reorder";
 import { advanceSupersetRotation, type SupersetGroupMember } from "../../domain/superset";
 import type { Exercise } from "../../types/exercise";
 import type { SetEntry } from "../../types/workoutSession";
@@ -165,6 +167,29 @@ export function ActiveWorkout({ sessionId, onDone }: Props) {
   const elapsedLabel = formatElapsed(elapsedSeconds);
   const availableEquipmentIds = detail.gym ? new Set(detail.gym.equipmentIds) : undefined;
 
+  const performances = detail.performances.map((pd) => pd.performance);
+  const performanceIndex = new Map(performances.map((perf, i) => [perf.id, i]));
+
+  function canMoveEntry(index: number, direction: "up" | "down"): boolean {
+    if (performances[index].groupId) {
+      const swapWith = direction === "up" ? index - 1 : index + 1;
+      return swapWith >= 0 && swapWith < performances.length && performances[swapWith].groupId === performances[index].groupId;
+    }
+    const [start, end] = blockRange(performances, index);
+    return direction === "up" ? start > 0 : end < performances.length;
+  }
+
+  function moveEntry(index: number, direction: "up" | "down") {
+    const reordered = performances[index].groupId
+      ? moveWithinGroup(performances, index, direction)
+      : moveBlock(performances, index, direction);
+    void reorderPerformances(reordered.map((perf) => perf.id));
+  }
+
+  function moveGroup(firstIndex: number, direction: "up" | "down") {
+    void reorderPerformances(moveBlock(performances, firstIndex, direction).map((perf) => perf.id));
+  }
+
   return (
     <div className="flex flex-1 flex-col">
       <div className="grid grid-cols-[auto_1fr_auto] items-center border-b border-slate-800 p-4">
@@ -226,14 +251,32 @@ export function ActiveWorkout({ sessionId, onDone }: Props) {
                         {p.exercise?.name ?? "Exercise"}
                       </h2>
                     </div>
-                    {canSwap && p.exercise && (
+                    <div className="flex items-center gap-2">
+                      {canSwap && p.exercise && (
+                        <button
+                          onClick={() => setSwappingPerformance(p)}
+                          className="text-xs font-medium text-sky-400 active:text-sky-300"
+                        >
+                          Swap
+                        </button>
+                      )}
                       <button
-                        onClick={() => setSwappingPerformance(p)}
-                        className="text-xs font-medium text-sky-400 active:text-sky-300"
+                        onClick={() => moveEntry(performanceIndex.get(p.performance.id)!, "up")}
+                        disabled={!canMoveEntry(performanceIndex.get(p.performance.id)!, "up")}
+                        aria-label="Move up"
+                        className="text-slate-500 active:text-slate-300 disabled:opacity-30"
                       >
-                        Swap
+                        ▲
                       </button>
-                    )}
+                      <button
+                        onClick={() => moveEntry(performanceIndex.get(p.performance.id)!, "down")}
+                        disabled={!canMoveEntry(performanceIndex.get(p.performance.id)!, "down")}
+                        aria-label="Move down"
+                        className="text-slate-500 active:text-slate-300 disabled:opacity-30"
+                      >
+                        ▼
+                      </button>
+                    </div>
                   </div>
 
                   <div className="flex flex-col gap-2">
@@ -291,12 +334,32 @@ export function ActiveWorkout({ sessionId, onDone }: Props) {
               <div key={block.groupId} className="flex flex-col gap-2 rounded-xl p-2 ring-2 ring-amber-500/40">
                 <div className="flex items-center justify-between px-1">
                   <span className="text-xs font-semibold uppercase tracking-wide text-amber-400">Superset</span>
-                  <button
-                    onClick={() => void disbandSuperset(sessionId, block.groupId!)}
-                    className="text-xs font-medium text-slate-500 active:text-red-400"
-                  >
-                    Ungroup
-                  </button>
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => moveGroup(performanceIndex.get(block.members[0].performance.id)!, "up")}
+                      disabled={blockRange(performances, performanceIndex.get(block.members[0].performance.id)!)[0] === 0}
+                      aria-label="Move superset up"
+                      className="text-xs font-medium text-slate-500 active:text-slate-300 disabled:opacity-30"
+                    >
+                      ▲
+                    </button>
+                    <button
+                      onClick={() => moveGroup(performanceIndex.get(block.members[0].performance.id)!, "down")}
+                      disabled={
+                        blockRange(performances, performanceIndex.get(block.members[0].performance.id)!)[1] === performances.length
+                      }
+                      aria-label="Move superset down"
+                      className="text-xs font-medium text-slate-500 active:text-slate-300 disabled:opacity-30"
+                    >
+                      ▼
+                    </button>
+                    <button
+                      onClick={() => void disbandSuperset(sessionId, block.groupId!)}
+                      className="text-xs font-medium text-slate-500 active:text-red-400"
+                    >
+                      Ungroup
+                    </button>
+                  </div>
                 </div>
                 {cards}
               </div>
