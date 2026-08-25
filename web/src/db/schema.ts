@@ -3,6 +3,7 @@ import type { Equipment } from "../types/equipment";
 import type { Exercise } from "../types/exercise";
 import type { Gym } from "../types/gym";
 import type { Routine } from "../types/routine";
+import type { Profile } from "../types/profile";
 import type { WorkoutSession, ExercisePerformance, SetEntry } from "../types/workoutSession";
 
 export class WorkoutDatabase extends Dexie {
@@ -10,6 +11,7 @@ export class WorkoutDatabase extends Dexie {
   exercises!: EntityTable<Exercise, "id">;
   gyms!: EntityTable<Gym, "id">;
   routines!: EntityTable<Routine, "id">;
+  profile!: EntityTable<Profile, "id">;
   sessions!: EntityTable<WorkoutSession, "id">;
   performances!: EntityTable<ExercisePerformance, "id">;
   sets!: EntityTable<SetEntry, "id">;
@@ -30,6 +32,10 @@ export class WorkoutDatabase extends Dexie {
 
     this.version(2).stores({
       routines: "id, name, createdAt",
+    });
+
+    this.version(3).stores({
+      profile: "id",
     });
   }
 }

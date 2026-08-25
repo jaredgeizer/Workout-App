@@ -1,4 +1,5 @@
 import { db } from "../db/schema";
+import { getProfile } from "../db/repo";
 import { MUSCLE_GROUPS, type MuscleGroup } from "../types/muscleGroup";
 
 /** Hours before a muscle group is considered fully recovered after being a primary mover. */
@@ -22,6 +23,16 @@ export const MUSCLE_RECOVERY_HOURS: Record<MuscleGroup, number> = {
   calves: 48,
   neck: 48,
 };
+
+/**
+ * Rough heuristic, not a tuned model: age is the one factor with real backing for needing
+ * more recovery time, so it's the only one applied. +10% recovery time per decade past 30;
+ * no adjustment below 30 rather than inventing a "recovers faster than baseline" effect.
+ */
+export function ageRecoveryMultiplier(age: number | undefined): number {
+  if (!age || age <= 30) return 1;
+  return 1 + ((age - 30) / 10) * 0.1;
+}
 
 export interface MuscleFreshness {
   muscle: MuscleGroup;
@@ -59,6 +70,9 @@ export async function computeMuscleFreshness(): Promise<MuscleFreshness[]> {
     }
   }
 
+  const profile = await getProfile();
+  const multiplier = ageRecoveryMultiplier(profile?.age);
+
   const now = Date.now();
   return MUSCLE_GROUPS.map((muscle) => {
     const lastDate = lastTrainedAt.get(muscle) ?? null;
@@ -66,6 +80,7 @@ export async function computeMuscleFreshness(): Promise<MuscleFreshness[]> {
       return { muscle, lastTrainedAt: null, freshnessScore: 1 };
     }
     const hoursSince = (now - new Date(lastDate).getTime()) / (1000 * 60 * 60);
-    return { muscle, lastTrainedAt: lastDate, freshnessScore: hoursSince / MUSCLE_RECOVERY_HOURS[muscle] };
+    const recoveryWindow = MUSCLE_RECOVERY_HOURS[muscle] * multiplier;
+    return { muscle, lastTrainedAt: lastDate, freshnessScore: hoursSince / recoveryWindow };
   });
 }

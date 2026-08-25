@@ -11,6 +11,14 @@ interface Props {
   onClose: () => void;
 }
 
+function matchesSearch(name: string, search: string): boolean {
+  const n = name.toLowerCase();
+  const q = search.toLowerCase();
+  if (n.includes(q)) return true;
+  if (q.endsWith("s") && n.includes(q.slice(0, -1))) return true;
+  return false;
+}
+
 export function ExercisePicker({ availableEquipmentIds, onSelect, onClose }: Props) {
   const allExercises = useLiveQuery(() => db.exercises.orderBy("name").toArray(), []) ?? [];
   const [search, setSearch] = useState("");
@@ -19,7 +27,7 @@ export function ExercisePicker({ availableEquipmentIds, onSelect, onClose }: Pro
 
   const filtered = useMemo(() => {
     return allExercises.filter((exercise) => {
-      if (search && !exercise.name.toLowerCase().includes(search.toLowerCase())) return false;
+      if (search && !matchesSearch(exercise.name, search)) return false;
       if (muscle && !exercise.primaryMuscles.includes(muscle)) return false;
       if (onlyAvailable && availableEquipmentIds && !isExerciseAvailable(exercise, availableEquipmentIds)) return false;
       return true;

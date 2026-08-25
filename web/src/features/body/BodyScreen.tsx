@@ -2,11 +2,13 @@ import { useEffect, useState } from "react";
 import { useLiveQuery } from "dexie-react-hooks";
 import { computeMuscleFreshness, type MuscleFreshness } from "../../domain/freshness";
 import { muscleDisplayName } from "../../types/muscleGroup";
+import { ProfileEditor } from "../profile/ProfileEditor";
 
 const REFRESH_INTERVAL_MS = 60_000;
 
 export function BodyScreen() {
   const [tick, setTick] = useState(0);
+  const [isEditingProfile, setIsEditingProfile] = useState(false);
 
   useEffect(() => {
     const interval = setInterval(() => setTick((t) => t + 1), REFRESH_INTERVAL_MS);
@@ -23,12 +25,23 @@ export function BodyScreen() {
 
   return (
     <div className="flex flex-col gap-4 p-4 pb-24">
-      <div>
-        <h1 className="text-2xl font-semibold text-slate-100">Body</h1>
-        <p className="text-sm text-slate-400">
-          {fullyRecoveredCount} of {withPercent.length} muscle groups fully recovered
-        </p>
+      <div className="flex items-start justify-between">
+        <div>
+          <h1 className="text-2xl font-semibold text-slate-100">Body</h1>
+          <p className="text-sm text-slate-400">
+            {fullyRecoveredCount} of {withPercent.length} muscle groups fully recovered
+          </p>
+        </div>
+        <button
+          onClick={() => setIsEditingProfile(true)}
+          aria-label="Profile settings"
+          className="flex h-9 w-9 items-center justify-center rounded-full bg-slate-800 text-lg active:bg-slate-700"
+        >
+          ⚙️
+        </button>
       </div>
+
+      {isEditingProfile && <ProfileEditor onClose={() => setIsEditingProfile(false)} />}
 
       <ul className="flex flex-col gap-3">
         {withPercent.map((entry) => (

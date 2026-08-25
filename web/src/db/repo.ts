@@ -3,9 +3,22 @@ import type { Equipment, EquipmentCategory } from "../types/equipment";
 import type { Exercise } from "../types/exercise";
 import type { Gym } from "../types/gym";
 import type { Routine, RoutineExerciseEntry } from "../types/routine";
+import type { Profile } from "../types/profile";
 import type { ExercisePerformance, SetEntry, WorkoutSession } from "../types/workoutSession";
 import type { MuscleGroup } from "../types/muscleGroup";
 import { nextTarget } from "../domain/progression";
+
+// ---- Profile ----
+
+const PROFILE_ID = "singleton";
+
+export async function getProfile(): Promise<Profile | undefined> {
+  return db.profile.get(PROFILE_ID);
+}
+
+export async function setProfileAge(age: number): Promise<void> {
+  await db.profile.put({ id: PROFILE_ID, age });
+}
 
 // ---- Equipment ----
 
