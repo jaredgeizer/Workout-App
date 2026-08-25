@@ -11,6 +11,7 @@ import {
   updateRoutineExercises,
   deleteRoutine,
 } from "../../db/repo";
+import { blockRange, moveBlock, moveWithinGroup } from "../../domain/reorder";
 import { groupTogether } from "../../domain/superset";
 import { ExerciseDetailModal } from "../workout/ExerciseDetailModal";
 import { ExercisePicker } from "../workout/ExercisePicker";
@@ -73,6 +74,30 @@ export function RoutineDetail({ routineId, onBack, onStart }: Props) {
   function removeEntry(index: number) {
     const next = currentRoutine.exercises.filter((_, i) => i !== index);
     void updateRoutineExercises(routineId, next);
+  }
+
+  function canMoveEntry(index: number, direction: "up" | "down"): boolean {
+    const exercises = currentRoutine.exercises;
+    if (exercises[index].groupId) {
+      const swapWith = direction === "up" ? index - 1 : index + 1;
+      return swapWith >= 0 && swapWith < exercises.length && exercises[swapWith].groupId === exercises[index].groupId;
+    }
+    const [start, end] = blockRange(exercises, index);
+    return direction === "up" ? start > 0 : end < exercises.length;
+  }
+
+  function moveEntry(index: number, direction: "up" | "down") {
+    const exercises = currentRoutine.exercises;
+    const reordered = exercises[index].groupId
+      ? moveWithinGroup(exercises, index, direction)
+      : moveBlock(exercises, index, direction);
+    void updateRoutineExercises(routineId, reordered.map((entry, i) => ({ ...entry, orderIndex: i })));
+  }
+
+  function moveGroup(firstIndex: number, direction: "up" | "down") {
+    const exercises = currentRoutine.exercises;
+    const reordered = moveBlock(exercises, firstIndex, direction);
+    void updateRoutineExercises(routineId, reordered.map((entry, i) => ({ ...entry, orderIndex: i })));
   }
 
   function toggleSelected(index: number) {
@@ -210,9 +235,27 @@ export function RoutineDetail({ routineId, onBack, onStart }: Props) {
                       {exerciseById.get(entry.exerciseId)?.name ?? "Exercise"}
                     </span>
                   </div>
-                  <button onClick={() => removeEntry(index)} className="text-slate-500 active:text-red-400">
-                    ✕
-                  </button>
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => moveEntry(index, "up")}
+                      disabled={!canMoveEntry(index, "up")}
+                      aria-label="Move up"
+                      className="text-slate-500 active:text-slate-300 disabled:opacity-30"
+                    >
+                      ▲
+                    </button>
+                    <button
+                      onClick={() => moveEntry(index, "down")}
+                      disabled={!canMoveEntry(index, "down")}
+                      aria-label="Move down"
+                      className="text-slate-500 active:text-slate-300 disabled:opacity-30"
+                    >
+                      ▼
+                    </button>
+                    <button onClick={() => removeEntry(index)} className="text-slate-500 active:text-red-400">
+                      ✕
+                    </button>
+                  </div>
                 </div>
 
                 <div className="mt-2 flex gap-2">
@@ -300,12 +343,30 @@ export function RoutineDetail({ routineId, onBack, onStart }: Props) {
               <div key={block.groupId} className="flex flex-col gap-2 rounded-xl p-2 ring-2 ring-amber-500/40">
                 <div className="flex items-center justify-between px-1">
                   <span className="text-xs font-semibold uppercase tracking-wide text-amber-400">Superset</span>
-                  <button
-                    onClick={() => disbandSuperset(block.groupId!)}
-                    className="text-xs font-medium text-slate-500 active:text-red-400"
-                  >
-                    Ungroup
-                  </button>
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => moveGroup(block.items[0].index, "up")}
+                      disabled={blockRange(routine.exercises, block.items[0].index)[0] === 0}
+                      aria-label="Move superset up"
+                      className="text-xs font-medium text-slate-500 active:text-slate-300 disabled:opacity-30"
+                    >
+                      ▲
+                    </button>
+                    <button
+                      onClick={() => moveGroup(block.items[0].index, "down")}
+                      disabled={blockRange(routine.exercises, block.items[0].index)[1] === routine.exercises.length}
+                      aria-label="Move superset down"
+                      className="text-xs font-medium text-slate-500 active:text-slate-300 disabled:opacity-30"
+                    >
+                      ▼
+                    </button>
+                    <button
+                      onClick={() => disbandSuperset(block.groupId!)}
+                      className="text-xs font-medium text-slate-500 active:text-red-400"
+                    >
+                      Ungroup
+                    </button>
+                  </div>
                 </div>
                 {cards}
               </div>

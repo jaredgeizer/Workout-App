@@ -1,5 +1,6 @@
 import { useState } from "react";
 import type { PlannedExercise } from "../../db/repo";
+import { blockRange, moveBlock, moveWithinGroup } from "../../domain/reorder";
 import type { Exercise } from "../../types/exercise";
 import { ExerciseDetailModal } from "./ExerciseDetailModal";
 import { ExerciseThumbnail } from "./ExerciseThumbnail";
@@ -9,6 +10,7 @@ interface Props {
   planned: PlannedExercise[];
   onUpdate: (index: number, changes: Partial<PlannedExercise>) => void;
   onRemove: (index: number) => void;
+  onReorder: (next: PlannedExercise[]) => void;
   onAdd: () => void;
   onMakeSuperset: (indexes: number[]) => void;
   onDisbandSuperset: (groupId: string) => void;
@@ -34,10 +36,23 @@ function toBlocks(planned: PlannedExercise[]): Block[] {
 }
 
 /** The exercise list + sets/reps steppers shared by the workout builder and the routine editor. */
-export function ExercisePlanList({ planned, onUpdate, onRemove, onAdd, onMakeSuperset, onDisbandSuperset }: Props) {
+export function ExercisePlanList({ planned, onUpdate, onRemove, onReorder, onAdd, onMakeSuperset, onDisbandSuperset }: Props) {
   const [selectMode, setSelectMode] = useState(false);
   const [selectedIndexes, setSelectedIndexes] = useState<Set<number>>(new Set());
   const [detailExercise, setDetailExercise] = useState<Exercise | null>(null);
+
+  function canMove(index: number, direction: "up" | "down"): boolean {
+    if (planned[index].groupId) {
+      const swapWith = direction === "up" ? index - 1 : index + 1;
+      return swapWith >= 0 && swapWith < planned.length && planned[swapWith].groupId === planned[index].groupId;
+    }
+    const [start, end] = blockRange(planned, index);
+    return direction === "up" ? start > 0 : end < planned.length;
+  }
+
+  function handleMove(index: number, direction: "up" | "down") {
+    onReorder(planned[index].groupId ? moveWithinGroup(planned, index, direction) : moveBlock(planned, index, direction));
+  }
 
   function toggleSelected(index: number) {
     setSelectedIndexes((prev) => {
@@ -86,9 +101,27 @@ export function ExercisePlanList({ planned, onUpdate, onRemove, onAdd, onMakeSup
                   <ExerciseThumbnail exercise={p.exercise} onOpen={() => setDetailExercise(p.exercise)} />
                   <span className="font-medium text-slate-100">{p.exercise.name}</span>
                 </div>
-                <button onClick={() => onRemove(index)} className="text-slate-500 active:text-red-400">
-                  ✕
-                </button>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => handleMove(index, "up")}
+                    disabled={!canMove(index, "up")}
+                    aria-label="Move up"
+                    className="text-slate-500 active:text-slate-300 disabled:opacity-30"
+                  >
+                    ▲
+                  </button>
+                  <button
+                    onClick={() => handleMove(index, "down")}
+                    disabled={!canMove(index, "down")}
+                    aria-label="Move down"
+                    className="text-slate-500 active:text-slate-300 disabled:opacity-30"
+                  >
+                    ▼
+                  </button>
+                  <button onClick={() => onRemove(index)} className="text-slate-500 active:text-red-400">
+                    ✕
+                  </button>
+                </div>
               </div>
 
               <div className="mt-2 flex gap-2">
@@ -134,12 +167,30 @@ export function ExercisePlanList({ planned, onUpdate, onRemove, onAdd, onMakeSup
             <div key={block.groupId} className="flex flex-col gap-2 rounded-xl p-2 ring-2 ring-amber-500/40">
               <div className="flex items-center justify-between px-1">
                 <span className="text-xs font-semibold uppercase tracking-wide text-amber-400">Superset</span>
-                <button
-                  onClick={() => onDisbandSuperset(block.groupId!)}
-                  className="text-xs font-medium text-slate-500 active:text-red-400"
-                >
-                  Ungroup
-                </button>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => onReorder(moveBlock(planned, block.items[0].index, "up"))}
+                    disabled={blockRange(planned, block.items[0].index)[0] === 0}
+                    aria-label="Move superset up"
+                    className="text-xs font-medium text-slate-500 active:text-slate-300 disabled:opacity-30"
+                  >
+                    ▲
+                  </button>
+                  <button
+                    onClick={() => onReorder(moveBlock(planned, block.items[0].index, "down"))}
+                    disabled={blockRange(planned, block.items[0].index)[1] === planned.length}
+                    aria-label="Move superset down"
+                    className="text-xs font-medium text-slate-500 active:text-slate-300 disabled:opacity-30"
+                  >
+                    ▼
+                  </button>
+                  <button
+                    onClick={() => onDisbandSuperset(block.groupId!)}
+                    className="text-xs font-medium text-slate-500 active:text-red-400"
+                  >
+                    Ungroup
+                  </button>
+                </div>
               </div>
               {cards}
             </div>

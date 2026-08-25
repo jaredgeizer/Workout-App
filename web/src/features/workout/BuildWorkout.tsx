@@ -53,6 +53,10 @@ export function BuildWorkout({ onCancel, onStarted, initialPlan, initialGymId, i
     setPlanned((prev) => prev.filter((_, i) => i !== index));
   }
 
+  function reorderPlanned(next: PlannedExercise[]) {
+    setPlanned(next);
+  }
+
   function makeSupersetLocal(indexes: number[]) {
     setPlanned((prev) => {
       const groupId = newId();
@@ -129,6 +133,7 @@ export function BuildWorkout({ onCancel, onStarted, initialPlan, initialGymId, i
           planned={planned}
           onUpdate={updatePlanned}
           onRemove={removePlanned}
+          onReorder={reorderPlanned}
           onAdd={() => setIsPicking(true)}
           onMakeSuperset={makeSupersetLocal}
           onDisbandSuperset={disbandSupersetLocal}
