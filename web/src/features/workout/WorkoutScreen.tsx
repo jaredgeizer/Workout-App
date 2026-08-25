@@ -32,7 +32,10 @@ export function WorkoutScreen({ onWorkoutStarted }: Props) {
           initialPlan={stage.initialPlan}
           initialGymId={stage.initialGymId}
           onCancel={() => setStage({ kind: "home" })}
-          onStarted={onWorkoutStarted}
+          onStarted={(sessionId) => {
+            setStage({ kind: "home" });
+            onWorkoutStarted(sessionId);
+          }}
         />
       </FullScreenOverlay>
     );

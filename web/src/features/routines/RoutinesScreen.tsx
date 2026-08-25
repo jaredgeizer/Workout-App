@@ -32,7 +32,10 @@ export function RoutinesScreen({ onWorkoutStarted }: Props) {
           initialPlan={stage.initialPlan}
           routineId={stage.routineId}
           onCancel={() => setStage({ kind: "detail", routineId: stage.routineId })}
-          onStarted={onWorkoutStarted}
+          onStarted={(sessionId) => {
+            setStage({ kind: "list" });
+            onWorkoutStarted(sessionId);
+          }}
         />
       </FullScreenOverlay>
     );

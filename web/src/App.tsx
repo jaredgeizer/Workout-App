@@ -6,6 +6,7 @@ import { FullScreenOverlay } from "./components/FullScreenOverlay";
 import { WorkoutScreen } from "./features/workout/WorkoutScreen";
 import { ActiveWorkout } from "./features/workout/ActiveWorkout";
 import { RoutinesScreen } from "./features/routines/RoutinesScreen";
+import { BodyScreen } from "./features/body/BodyScreen";
 import { GymsScreen } from "./features/gyms/GymsScreen";
 import { LogScreen } from "./features/log/LogScreen";
 
@@ -36,6 +37,7 @@ export default function App() {
       <main className="flex flex-1 flex-col">
         {tab === "workout" && <WorkoutScreen onWorkoutStarted={setActiveSessionId} />}
         {tab === "routines" && <RoutinesScreen onWorkoutStarted={setActiveSessionId} />}
+        {tab === "body" && <BodyScreen />}
         {tab === "gyms" && <GymsScreen />}
         {tab === "log" && <LogScreen />}
       </main>
