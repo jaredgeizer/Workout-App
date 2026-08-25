@@ -14,6 +14,8 @@ export interface Exercise {
   isCustom: boolean;
   /** Absence means "reps"; this only ever flags an exercise that defaults to a timed hold. */
   defaultLogMode?: "hold";
+  /** Path under /exercises/ to a still image or GIF showing the movement, e.g. "exercises/push-up.jpg". */
+  mediaUrl?: string;
 }
 
 export function exerciseAllMuscles(exercise: Exercise): MuscleGroup[] {

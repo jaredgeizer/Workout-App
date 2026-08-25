@@ -17,8 +17,10 @@ import { advanceSupersetRotation, type SupersetGroupMember } from "../../domain/
 import type { Exercise } from "../../types/exercise";
 import type { SetEntry } from "../../types/workoutSession";
 import { EffortRatingModal } from "./EffortRatingModal";
+import { ExerciseDetailModal } from "./ExerciseDetailModal";
 import { ExercisePicker } from "./ExercisePicker";
 import { ExerciseSwapPicker } from "./ExerciseSwapPicker";
+import { ExerciseThumbnail } from "./ExerciseThumbnail";
 import { HoldStopwatch } from "./HoldStopwatch";
 import { RestTimer } from "./RestTimer";
 import { SupersetSelectBar } from "./SupersetSelectBar";
@@ -69,6 +71,7 @@ export function ActiveWorkout({ sessionId, onDone }: Props) {
   const [groupFocus, setGroupFocus] = useState<Record<string, string>>({});
   const [selectMode, setSelectMode] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [detailExercise, setDetailExercise] = useState<Exercise | null>(null);
 
   useEffect(() => {
     const interval = setInterval(() => setNow(Date.now()), 1000);
@@ -217,6 +220,7 @@ export function ActiveWorkout({ sessionId, onDone }: Props) {
                           className="h-4 w-4 accent-sky-500"
                         />
                       )}
+                      <ExerciseThumbnail exercise={p.exercise} onOpen={() => p.exercise && setDetailExercise(p.exercise)} />
                       <h2
                         onClick={
                           block.groupId ? () => setGroupFocus((prev) => ({ ...prev, [block.groupId!]: p.performance.id })) : undefined
@@ -352,6 +356,8 @@ export function ActiveWorkout({ sessionId, onDone }: Props) {
           onDismiss={() => setRestEndsAt(null)}
         />
       )}
+
+      {detailExercise && <ExerciseDetailModal exercise={detailExercise} onClose={() => setDetailExercise(null)} />}
     </div>
   );
 }

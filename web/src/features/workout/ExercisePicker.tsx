@@ -4,6 +4,7 @@ import { db } from "../../db/schema";
 import type { Exercise } from "../../types/exercise";
 import { isExerciseAvailable } from "../../types/exercise";
 import { MUSCLE_GROUPS, muscleDisplayName, type MuscleGroup } from "../../types/muscleGroup";
+import { ExerciseThumbnail } from "./ExerciseThumbnail";
 
 interface Props {
   availableEquipmentIds: Set<string> | undefined;
@@ -82,10 +83,13 @@ export function ExercisePicker({ availableEquipmentIds, onSelect, onClose }: Pro
           <li key={exercise.id}>
             <button
               onClick={() => onSelect(exercise)}
-              className="flex w-full flex-col items-start gap-0.5 border-b border-slate-800 py-3 text-left active:bg-slate-800/60"
+              className="flex w-full items-center gap-3 border-b border-slate-800 py-3 text-left active:bg-slate-800/60"
             >
-              <span className="text-slate-100">{exercise.name}</span>
-              <span className="text-xs text-slate-500">{exercise.primaryMuscles.map(muscleDisplayName).join(", ")}</span>
+              <ExerciseThumbnail exercise={exercise} />
+              <div className="flex flex-col items-start gap-0.5">
+                <span className="text-slate-100">{exercise.name}</span>
+                <span className="text-xs text-slate-500">{exercise.primaryMuscles.map(muscleDisplayName).join(", ")}</span>
+              </div>
             </button>
           </li>
         ))}
