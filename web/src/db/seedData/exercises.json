@@ -11,6 +11,7 @@
 
   { "name": "Pull Up", "primaryMuscles": ["lats"], "secondaryMuscles": ["back", "biceps", "forearms"], "category": "compound", "equipment": ["Pull-up Bar"] },
   { "name": "Chin Up", "primaryMuscles": ["lats"], "secondaryMuscles": ["biceps", "back"], "category": "compound", "equipment": ["Pull-up Bar"] },
+  { "name": "Dead Hang", "primaryMuscles": ["forearms", "lats"], "secondaryMuscles": ["shoulders", "traps"], "category": "isolation", "equipment": ["Pull-up Bar"] },
   { "name": "Lat Pulldown", "primaryMuscles": ["lats"], "secondaryMuscles": ["back", "biceps"], "category": "compound", "equipment": ["Lat Pulldown Machine"] },
   { "name": "Barbell Bent Over Row", "primaryMuscles": ["back"], "secondaryMuscles": ["lats", "biceps", "lowerBack"], "category": "compound", "equipment": ["Barbell"] },
   { "name": "Dumbbell Row", "primaryMuscles": ["back"], "secondaryMuscles": ["lats", "biceps"], "category": "compound", "equipment": ["Dumbbell", "Flat Bench"] },
@@ -34,6 +35,7 @@
   { "name": "Dumbbell Rear Delt Fly", "primaryMuscles": ["shoulders"], "secondaryMuscles": ["back", "traps"], "category": "isolation", "equipment": ["Dumbbell"] },
   { "name": "Cable Face Pull", "primaryMuscles": ["shoulders"], "secondaryMuscles": ["traps", "back"], "category": "isolation", "equipment": ["Cable Machine"] },
   { "name": "Barbell Upright Row", "primaryMuscles": ["shoulders", "traps"], "secondaryMuscles": ["biceps"], "category": "compound", "equipment": ["Barbell"] },
+  { "name": "Wall Arm Raise", "primaryMuscles": ["shoulders"], "secondaryMuscles": ["traps", "back"], "category": "isolation", "equipment": ["Bodyweight"] },
 
   { "name": "Barbell Curl", "primaryMuscles": ["biceps"], "secondaryMuscles": ["forearms"], "category": "isolation", "equipment": ["Barbell"] },
   { "name": "Dumbbell Curl", "primaryMuscles": ["biceps"], "secondaryMuscles": ["forearms"], "category": "isolation", "equipment": ["Dumbbell"] },
@@ -59,6 +61,8 @@
   { "name": "Back Extension", "primaryMuscles": ["lowerBack"], "secondaryMuscles": ["glutes", "hamstrings"], "category": "isolation", "equipment": ["Bodyweight"] },
   { "name": "Superman", "primaryMuscles": ["lowerBack"], "secondaryMuscles": ["glutes"], "category": "isolation", "equipment": ["Bodyweight"] },
   { "name": "Side Plank", "primaryMuscles": ["obliques"], "secondaryMuscles": ["abs"], "category": "isolation", "equipment": ["Bodyweight"] },
+  { "name": "Bird Dog", "primaryMuscles": ["abs", "lowerBack"], "secondaryMuscles": ["glutes"], "category": "isolation", "equipment": ["Bodyweight"] },
+  { "name": "Dead Bug", "primaryMuscles": ["abs"], "secondaryMuscles": ["obliques"], "category": "isolation", "equipment": ["Bodyweight"] },
 
   { "name": "Barbell Back Squat", "primaryMuscles": ["quadriceps", "glutes"], "secondaryMuscles": ["hamstrings", "lowerBack"], "category": "compound", "equipment": ["Barbell"] },
   { "name": "Barbell Front Squat", "primaryMuscles": ["quadriceps"], "secondaryMuscles": ["glutes", "abs"], "category": "compound", "equipment": ["Barbell"] },
@@ -81,6 +85,15 @@
   { "name": "Seated Dumbbell Calf Raise", "primaryMuscles": ["calves"], "secondaryMuscles": [], "category": "isolation", "equipment": ["Dumbbell", "Flat Bench"] },
   { "name": "Kettlebell Swing", "primaryMuscles": ["glutes", "hamstrings"], "secondaryMuscles": ["back", "shoulders"], "category": "compound", "equipment": ["Kettlebell"] },
   { "name": "Air Squat", "primaryMuscles": ["quadriceps", "glutes"], "secondaryMuscles": ["hamstrings"], "category": "compound", "equipment": ["Bodyweight"] },
+  { "name": "Deep Squat", "primaryMuscles": ["quadriceps", "adductors"], "secondaryMuscles": ["glutes", "hamstrings"], "category": "compound", "equipment": ["Bodyweight"] },
+  { "name": "Cossack Squat (Kazak Squat)", "primaryMuscles": ["adductors", "quadriceps"], "secondaryMuscles": ["glutes", "hamstrings"], "category": "compound", "equipment": ["Bodyweight"] },
+  { "name": "Single Leg Rear Deadlift", "primaryMuscles": ["hamstrings", "glutes"], "secondaryMuscles": ["lowerBack", "abductors"], "category": "compound", "equipment": ["Bodyweight"] },
+  { "name": "Kneeling Hip Drive", "primaryMuscles": ["glutes"], "secondaryMuscles": ["hamstrings", "abs"], "category": "isolation", "equipment": ["Bodyweight"] },
+  { "name": "90/90 Hip Switch", "primaryMuscles": ["adductors", "abductors"], "secondaryMuscles": ["glutes"], "category": "isolation", "equipment": ["Bodyweight"] },
+  { "name": "Single Knee Fallout", "primaryMuscles": ["adductors"], "secondaryMuscles": ["abs", "glutes"], "category": "isolation", "equipment": ["Bodyweight"] },
+  { "name": "Double Knee Fallout", "primaryMuscles": ["adductors"], "secondaryMuscles": ["abs", "glutes"], "category": "isolation", "equipment": ["Bodyweight"] },
+  { "name": "Mini Happy Baby", "primaryMuscles": ["adductors"], "secondaryMuscles": ["glutes", "hamstrings"], "category": "isolation", "equipment": ["Bodyweight"] },
+  { "name": "Frog Stretch", "primaryMuscles": ["adductors"], "secondaryMuscles": ["glutes", "lowerBack"], "category": "isolation", "equipment": ["Bodyweight"] },
 
   { "name": "Bodyweight Neck Curl", "primaryMuscles": ["neck"], "secondaryMuscles": [], "category": "isolation", "equipment": ["Bodyweight"] },
 
