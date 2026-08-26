@@ -99,5 +99,10 @@
 
   { "name": "Treadmill Run", "primaryMuscles": ["quadriceps", "hamstrings"], "secondaryMuscles": ["calves"], "category": "cardio", "equipment": ["Treadmill"] },
   { "name": "Stationary Bike Ride", "primaryMuscles": ["quadriceps"], "secondaryMuscles": ["hamstrings", "calves"], "category": "cardio", "equipment": ["Stationary Bike"] },
-  { "name": "Rowing Machine", "primaryMuscles": ["back", "lats"], "secondaryMuscles": ["quadriceps", "biceps"], "category": "cardio", "equipment": ["Rowing Machine"] }
+  { "name": "Rowing Machine", "primaryMuscles": ["back", "lats"], "secondaryMuscles": ["quadriceps", "biceps"], "category": "cardio", "equipment": ["Rowing Machine"] },
+  { "name": "Kettlebell Reverse Curl + Upright Row", "primaryMuscles": ["biceps", "shoulders"], "secondaryMuscles": ["forearms", "traps"], "category": "compound", "equipment": ["Kettlebell"] },
+  { "name": "Kettlebell Curl + Halo", "primaryMuscles": ["biceps", "shoulders"], "secondaryMuscles": ["obliques", "traps"], "category": "compound", "equipment": ["Kettlebell"] },
+  { "name": "Kettlebell Curl + Press", "primaryMuscles": ["biceps", "shoulders"], "secondaryMuscles": ["triceps"], "category": "compound", "equipment": ["Kettlebell"] },
+  { "name": "Kettlebell Curl + Pullover", "primaryMuscles": ["biceps", "lats"], "secondaryMuscles": ["chest", "triceps"], "category": "compound", "equipment": ["Kettlebell"] },
+  { "name": "Close-Grip Kettlebell Push-Up", "primaryMuscles": ["chest", "triceps"], "secondaryMuscles": ["shoulders", "abs"], "category": "compound", "equipment": ["Kettlebell"] }
 ]
