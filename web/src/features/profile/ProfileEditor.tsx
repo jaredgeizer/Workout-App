@@ -8,6 +8,8 @@ import {
   MAX_SESSION_FATIGUE,
   MUSCLE_RECOVERY_HOURS,
   PER_HIT_FATIGUE_AT_MAX_EFFORT,
+  RELATIVE_VOLUME_MAX,
+  RELATIVE_VOLUME_MIN,
   SECONDARY_MOVER_WEIGHT,
 } from "../../domain/freshness";
 import { ACUTE_WINDOW_DAYS, CHRONIC_WINDOW_DAYS, LOAD_LABEL_THRESHOLDS } from "../../domain/trainingLoad";
@@ -132,7 +134,14 @@ export function ProfileEditor({ onClose }: Props) {
               hits × (effort ÷ 10) × {Math.round(PER_HIT_FATIGUE_AT_MAX_EFFORT * 100)}%) — "hits"
               adds 1 per exercise that session that used the muscle as a primary mover, and{" "}
               {Math.round(SECONDARY_MOVER_WEIGHT * 100)}% of that per exercise where it was only a
-              secondary mover (e.g. triceps on a chest-primary Push Up). So freshness never drops
+              secondary mover (e.g. triceps on a chest-primary Push Up).
+            </p>
+            <p className="mt-1">
+              Each of those hits is then scaled by how that exercise's weight × reps (or weight ×
+              hold time) this session compares to your own last time doing it — {RELATIVE_VOLUME_MIN}
+              x to {RELATIVE_VOLUME_MAX}x, so a heavier or higher-rep session than usual drains a
+              bit more and a lighter one drains a bit less. The first time you do an exercise (no
+              prior session to compare against) counts as a neutral 1x. So freshness never drops
               below {Math.round((1 - MAX_SESSION_FATIGUE) * 100)}% immediately after, no matter how
               hard or how much volume the session was, then it climbs back to 100% over the
               recovery window above.

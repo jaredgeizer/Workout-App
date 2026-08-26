@@ -1,6 +1,7 @@
 import { db } from "../db/schema";
 import { getProfile } from "../db/repo";
 import { MUSCLE_GROUPS, type MuscleGroup } from "../types/muscleGroup";
+import type { ExercisePerformance, SetEntry } from "../types/workoutSession";
 
 /** Hours before a muscle group is considered fully recovered after being a primary mover. */
 export const MUSCLE_RECOVERY_HOURS: Record<MuscleGroup, number> = {
@@ -64,6 +65,29 @@ export const SECONDARY_MOVER_WEIGHT = 0.4;
  * fresh immediately afterward — an all-out session shouldn't read the same as an injury. */
 export const MAX_SESSION_FATIGUE = 0.8;
 
+/** This session's weight×reps (or weight×hold-seconds) for an exercise, relative to your own
+ * last time doing it, can shrink or grow that exercise's hit contribution by at most this much
+ * — a single fluky data point (e.g. a one-rep test) shouldn't dominate the reading. */
+export const RELATIVE_VOLUME_MIN = 0.5;
+export const RELATIVE_VOLUME_MAX = 2.0;
+
+/** Weight×reps (or weight×hold-seconds) proxy for how much work one set represents. Bodyweight
+ * sets (weight 0) still count reps/duration as real work rather than zeroing out — unlike
+ * `setVolume()` in workoutSession.ts, which intentionally reads 0 for those for the "Total
+ * Volume" stat elsewhere; this is a different use, so it doesn't reuse that helper. */
+function setLoadProxy(set: SetEntry, isHold: boolean): number {
+  const quantity = isHold ? (set.holdSeconds ?? 0) : set.reps;
+  const weightFactor = set.weight > 0 ? set.weight : 1;
+  return weightFactor * quantity;
+}
+
+/** How this session's volume for one exercise compares to your own most recent prior session of
+ * it — 1 (neutral) the first time you do an exercise, since there's nothing yet to compare to. */
+function relativeVolumeFactor(thisVolume: number, baselineVolume: number): number {
+  if (baselineVolume <= 0) return 1;
+  return Math.min(RELATIVE_VOLUME_MAX, Math.max(RELATIVE_VOLUME_MIN, thisVolume / baselineVolume));
+}
+
 /**
  * How fresh a muscle reads the instant a session ends: 1 minus accumulated fatigue from every
  * exercise in that session that used it as a primary or secondary mover (weighted — see
@@ -119,22 +143,69 @@ export async function computeMuscleFreshness(): Promise<MuscleFreshness[]> {
     }
   }
 
+  // Only the performances that actually belong to some muscle's winning session matter from
+  // here on — no need to load set data for the rest of history.
+  const winningSessionIds = new Set([...lastTrainedBy.values()].map((v) => v.sessionId));
+  const winningPerformances = relevantPerformances.filter((p) => winningSessionIds.has(p.sessionId));
+
+  // For each winning performance, find the most recent *other* completed performance of the
+  // same exercise from an earlier session — its own prior showing, used as this exercise's
+  // personal baseline rather than any global strength number.
+  const previousPerformanceByWinningId = new Map<string, ExercisePerformance | undefined>();
+  for (const performance of winningPerformances) {
+    const thisDate = sessionById.get(performance.sessionId)!.date;
+    const sameExercise = relevantPerformances.filter(
+      (other) => other.exerciseId === performance.exerciseId && sessionById.get(other.sessionId)!.date < thisDate,
+    );
+    sameExercise.sort((a, b) => sessionById.get(b.sessionId)!.date.localeCompare(sessionById.get(a.sessionId)!.date));
+    previousPerformanceByWinningId.set(performance.id, sameExercise[0]);
+  }
+  const previousPerformances = [...previousPerformanceByWinningId.values()].filter(
+    (p): p is ExercisePerformance => !!p,
+  );
+
+  const winningIds = winningPerformances.map((p) => p.id);
+  const previousIds = previousPerformances.map((p) => p.id);
+  const [winningSets, previousSets] = await Promise.all([
+    winningIds.length > 0 ? db.sets.where("performanceId").anyOf(winningIds).toArray() : Promise.resolve<SetEntry[]>([]),
+    previousIds.length > 0 ? db.sets.where("performanceId").anyOf(previousIds).toArray() : Promise.resolve<SetEntry[]>([]),
+  ]);
+  const setsByPerformanceId = new Map<string, SetEntry[]>();
+  for (const set of [...winningSets, ...previousSets]) {
+    const list = setsByPerformanceId.get(set.performanceId) ?? [];
+    list.push(set);
+    setsByPerformanceId.set(set.performanceId, list);
+  }
+
   // How much weighted "hit" each muscle got within its own most-recent session (not across all
-  // history) — primary movers count fully, secondary movers count for less (e.g. two leg
-  // exercises in the same workout fatigue quads more than one does; triceps still gets some
-  // fatigue from a chest-primary Push Up, just less than chest does).
+  // history) — primary movers count fully, secondary movers count for less (e.g. triceps still
+  // gets some fatigue from a chest-primary Push Up, just less than chest does), each further
+  // scaled by how this exercise's weight/reps compared to your own last time doing it.
   const weightedHitsByMuscle = new Map<MuscleGroup, number>();
-  for (const performance of relevantPerformances) {
+  for (const performance of winningPerformances) {
     const exercise = exerciseById.get(performance.exerciseId);
     if (!exercise) continue;
+    const isHold = performance.logMode === "hold";
+
+    const thisVolume = (setsByPerformanceId.get(performance.id) ?? [])
+      .filter((s) => s.isCompleted)
+      .reduce((sum, s) => sum + setLoadProxy(s, isHold), 0);
+    const previousPerformance = previousPerformanceByWinningId.get(performance.id);
+    const baselineVolume = previousPerformance
+      ? (setsByPerformanceId.get(previousPerformance.id) ?? [])
+          .filter((s) => s.isCompleted)
+          .reduce((sum, s) => sum + setLoadProxy(s, isHold), 0)
+      : 0;
+    const relativeFactor = relativeVolumeFactor(thisVolume, baselineVolume);
+
     for (const muscle of exercise.primaryMuscles) {
       if (lastTrainedBy.get(muscle)?.sessionId === performance.sessionId) {
-        weightedHitsByMuscle.set(muscle, (weightedHitsByMuscle.get(muscle) ?? 0) + 1);
+        weightedHitsByMuscle.set(muscle, (weightedHitsByMuscle.get(muscle) ?? 0) + relativeFactor);
       }
     }
     for (const muscle of exercise.secondaryMuscles) {
       if (lastTrainedBy.get(muscle)?.sessionId === performance.sessionId) {
-        weightedHitsByMuscle.set(muscle, (weightedHitsByMuscle.get(muscle) ?? 0) + SECONDARY_MOVER_WEIGHT);
+        weightedHitsByMuscle.set(muscle, (weightedHitsByMuscle.get(muscle) ?? 0) + SECONDARY_MOVER_WEIGHT * relativeFactor);
       }
     }
   }
