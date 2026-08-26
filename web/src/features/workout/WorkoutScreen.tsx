@@ -1,13 +1,15 @@
 import { useState } from "react";
 import { BuildWorkout } from "./BuildWorkout";
 import { GenerateWorkoutForm } from "./GenerateWorkoutForm";
+import { ActivityLogModal } from "./ActivityLogModal";
 import { FullScreenOverlay } from "../../components/FullScreenOverlay";
 import type { PlannedExercise } from "../../db/repo";
 
 type Stage =
   | { kind: "home" }
   | { kind: "generating" }
-  | { kind: "building"; initialPlan?: PlannedExercise[]; initialGymId?: string };
+  | { kind: "building"; initialPlan?: PlannedExercise[]; initialGymId?: string }
+  | { kind: "loggingActivity" };
 
 interface Props {
   onWorkoutStarted: (sessionId: string) => void;
@@ -23,6 +25,10 @@ export function WorkoutScreen({ onWorkoutStarted }: Props) {
         onGenerated={(plan, gymId) => setStage({ kind: "building", initialPlan: plan, initialGymId: gymId })}
       />
     );
+  }
+
+  if (stage.kind === "loggingActivity") {
+    return <ActivityLogModal onDone={() => setStage({ kind: "home" })} />;
   }
 
   if (stage.kind === "building") {
@@ -56,6 +62,12 @@ export function WorkoutScreen({ onWorkoutStarted }: Props) {
         className="w-full max-w-xs rounded-2xl border border-slate-700 px-6 py-4 text-lg font-semibold text-slate-200 active:bg-slate-800"
       >
         Generate Workout
+      </button>
+      <button
+        onClick={() => setStage({ kind: "loggingActivity" })}
+        className="mt-2 text-sm font-medium text-slate-400 active:text-slate-200"
+      >
+        + Log Activity
       </button>
     </div>
   );

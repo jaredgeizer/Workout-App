@@ -4,10 +4,17 @@ import type { ExerciseCategory } from "../types/exercise";
 import type { MuscleGroup } from "../types/muscleGroup";
 import equipmentSeed from "./seedData/equipment.json";
 import exercisesSeed from "./seedData/exercises.json";
+import activityTypesSeed from "./seedData/activityTypes.json";
 
 interface SeedEquipment {
   name: string;
   category: EquipmentCategory;
+}
+
+interface SeedActivityType {
+  name: string;
+  primaryMuscles: MuscleGroup[];
+  secondaryMuscles: MuscleGroup[];
 }
 
 interface SeedExercise {
@@ -35,6 +42,21 @@ export async function seedIfNeeded(): Promise<void> {
   await backfillHoldModeFlags();
   await backfillMediaUrls();
   await seedDefaultGym(equipmentByName);
+  await seedActivityTypes();
+}
+
+async function seedActivityTypes(): Promise<void> {
+  const existingNames = new Set((await db.activityTypes.toArray()).map((row) => row.name));
+  const missing = (activityTypesSeed as SeedActivityType[]).filter((item) => !existingNames.has(item.name));
+  if (missing.length === 0) return;
+
+  const rows = missing.map((item) => ({
+    id: newId(),
+    name: item.name,
+    primaryMuscles: item.primaryMuscles,
+    secondaryMuscles: item.secondaryMuscles,
+  }));
+  await db.activityTypes.bulkAdd(rows);
 }
 
 async function seedEquipment(): Promise<Map<string, string>> {

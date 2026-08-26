@@ -1,0 +1,14 @@
+[
+  { "name": "Running", "primaryMuscles": ["quadriceps", "hamstrings", "calves"], "secondaryMuscles": ["glutes", "abs"] },
+  { "name": "Walking", "primaryMuscles": ["quadriceps", "calves"], "secondaryMuscles": ["hamstrings", "glutes"] },
+  { "name": "Hiking", "primaryMuscles": ["quadriceps", "hamstrings", "calves"], "secondaryMuscles": ["glutes", "lowerBack"] },
+  { "name": "Cycling", "primaryMuscles": ["quadriceps", "hamstrings"], "secondaryMuscles": ["calves", "glutes"] },
+  { "name": "Swimming", "primaryMuscles": ["lats", "shoulders", "chest"], "secondaryMuscles": ["triceps", "abs", "quadriceps"] },
+  { "name": "Rowing", "primaryMuscles": ["back", "lats", "quadriceps"], "secondaryMuscles": ["biceps", "shoulders", "hamstrings"] },
+  { "name": "Elliptical", "primaryMuscles": ["quadriceps", "hamstrings", "calves"], "secondaryMuscles": ["glutes"] },
+  { "name": "Basketball", "primaryMuscles": ["quadriceps", "calves"], "secondaryMuscles": ["hamstrings", "glutes", "shoulders"] },
+  { "name": "Soccer", "primaryMuscles": ["quadriceps", "hamstrings", "calves"], "secondaryMuscles": ["glutes", "adductors"] },
+  { "name": "Volleyball", "primaryMuscles": ["shoulders", "quadriceps", "calves"], "secondaryMuscles": ["triceps", "abs", "glutes"] },
+  { "name": "Tennis", "primaryMuscles": ["shoulders", "forearms", "quadriceps"], "secondaryMuscles": ["obliques", "calves"] },
+  { "name": "Yoga", "primaryMuscles": ["abs", "obliques"], "secondaryMuscles": ["shoulders", "hamstrings", "lowerBack"] }
+]
