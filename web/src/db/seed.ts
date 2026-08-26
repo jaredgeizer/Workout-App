@@ -1,7 +1,7 @@
 import { db, newId } from "./schema";
 import type { EquipmentCategory } from "../types/equipment";
 import type { ExerciseCategory } from "../types/exercise";
-import type { MuscleGroup } from "../types/muscleGroup";
+import { MUSCLE_GROUPS, type MuscleGroup } from "../types/muscleGroup";
 import equipmentSeed from "./seedData/equipment.json";
 import exercisesSeed from "./seedData/exercises.json";
 import activityTypesSeed from "./seedData/activityTypes.json";
@@ -36,7 +36,27 @@ const HOME_EQUIPMENT_NAMES = new Set(["Bodyweight", "Dumbbell", "Pull-up Bar", "
  * "only seed if empty," so library updates (new exercises/equipment added later) reach browsers
  * that already have data, without touching anything a user has customized or logged.
  */
+/** Fails loud at boot if a future seed-data edit typos a muscle name — seed JSON is hand-typed
+ * data, so `as SeedX[]` alone wouldn't catch an invalid muscle string until it silently dropped
+ * out of freshness/training-load calculations later. */
+function assertValidMuscles(
+  items: { name: string; primaryMuscles: MuscleGroup[]; secondaryMuscles: MuscleGroup[] }[],
+  source: string,
+): void {
+  const valid = new Set<string>(MUSCLE_GROUPS);
+  for (const item of items) {
+    for (const muscle of [...item.primaryMuscles, ...item.secondaryMuscles]) {
+      if (!valid.has(muscle)) {
+        throw new Error(`${source}: "${item.name}" has invalid muscle "${muscle}"`);
+      }
+    }
+  }
+}
+
 export async function seedIfNeeded(): Promise<void> {
+  assertValidMuscles(exercisesSeed as SeedExercise[], "exercises.json");
+  assertValidMuscles(activityTypesSeed as SeedActivityType[], "activityTypes.json");
+
   const equipmentByName = await seedEquipment();
   await seedExercises(equipmentByName);
   await backfillHoldModeFlags();
