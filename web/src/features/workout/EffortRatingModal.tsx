@@ -1,23 +1,11 @@
 import { useState } from "react";
 import { rateWorkoutEffort } from "../../db/repo";
+import { EffortSlider } from "./EffortSlider";
 
 interface Props {
   sessionId: string;
   onDone: () => void;
 }
-
-const EFFORT_WORDS: Record<number, string> = {
-  1: "Very Easy",
-  2: "Easy",
-  3: "Easy",
-  4: "Light",
-  5: "Moderate",
-  6: "Moderate",
-  7: "Hard",
-  8: "Hard",
-  9: "Very Hard",
-  10: "Max Effort",
-};
 
 export function EffortRatingModal({ sessionId, onDone }: Props) {
   const [effort, setEffort] = useState(5);
@@ -39,24 +27,7 @@ export function EffortRatingModal({ sessionId, onDone }: Props) {
       </div>
 
       <div className="flex flex-1 flex-col justify-center gap-6 p-6">
-        <div className="flex flex-col items-center gap-2">
-          <span className="text-5xl font-bold tabular-nums text-slate-100">{effort}</span>
-          <span className="text-lg font-medium text-sky-400">{EFFORT_WORDS[effort]}</span>
-        </div>
-
-        <input
-          type="range"
-          min={1}
-          max={10}
-          step={1}
-          value={effort}
-          onChange={(e) => setEffort(Number(e.target.value))}
-          className="w-full accent-sky-500"
-        />
-        <div className="flex justify-between text-xs text-slate-500">
-          <span>1 · Very Easy</span>
-          <span>10 · Max Effort</span>
-        </div>
+        <EffortSlider value={effort} onChange={setEffort} />
 
         <p className="text-center text-sm text-slate-400">
           How hard was this workout overall? This feeds your training load below, and a harder

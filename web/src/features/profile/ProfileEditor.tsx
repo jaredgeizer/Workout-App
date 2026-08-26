@@ -146,15 +146,21 @@ export function ProfileEditor({ onClose }: Props) {
               hard or how much volume the session was, then it climbs back to 100% over the
               recovery window above.
             </p>
+            <p className="mt-1">
+              A logged activity (run, ride, etc. from the Workout tab) counts the same way — its
+              duration stands in for weight × reps, scaled the same way against your own last
+              time doing that activity, and its own effort rating feeds the same formula.
+            </p>
           </div>
 
           <div className="mt-2 rounded-lg bg-slate-800 p-3 text-xs leading-relaxed text-slate-400">
             <p className="font-semibold text-slate-300">Training Load (Body tab)</p>
             <p className="mt-1">
               Each rated session contributes duration (minutes) × effort (1–10) to that day's
-              load; unrated sessions contribute 0. "Acute" load is the sum of the last{" "}
-              {ACUTE_WINDOW_DAYS} days; "chronic" load is a weekly average over your last{" "}
-              {CHRONIC_WINDOW_DAYS} days of training (or your full history if shorter).
+              load; unrated sessions contribute 0. Logged activities count the same way, always
+              rated. "Acute" load is the sum of the last {ACUTE_WINDOW_DAYS} days; "chronic" load
+              is a weekly average over your last {CHRONIC_WINDOW_DAYS} days of training (or your
+              full history if shorter).
             </p>
             <p className="mt-1">
               The label compares acute to chronic as a percent difference: Well Below (≤

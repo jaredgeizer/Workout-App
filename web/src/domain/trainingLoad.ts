@@ -1,5 +1,6 @@
 import { db } from "../db/schema";
 import type { WorkoutSession } from "../types/workoutSession";
+import type { Activity } from "../types/activity";
 
 const TRAILING_DAYS = 35;
 export const CHRONIC_WINDOW_DAYS = 28;
@@ -18,6 +19,12 @@ export const LOAD_LABEL_THRESHOLDS = {
 export function sessionLoad(session: WorkoutSession): number {
   if (session.effort === undefined) return 0;
   return (session.duration / 60) * session.effort;
+}
+
+/** Same idea as `sessionLoad`, for a logged activity (e.g. a run) — duration is already in
+ * minutes and effort is always captured, so no unit conversion or unrated case needed. */
+export function activityLoad(activity: Activity): number {
+  return activity.durationMinutes * activity.effort;
 }
 
 function dayKey(date: Date): string {
@@ -50,7 +57,7 @@ export interface TrainingLoadSummary {
  * Not a tuned model; thresholds approximate Apple's public bands.
  */
 export async function computeTrainingLoad(): Promise<TrainingLoadSummary> {
-  const sessions = await db.sessions.toArray();
+  const [sessions, activities] = await Promise.all([db.sessions.toArray(), db.activities.toArray()]);
   const completed = sessions.filter((s) => s.isCompleted);
 
   const today = new Date();
@@ -67,6 +74,14 @@ export async function computeTrainingLoad(): Promise<TrainingLoadSummary> {
 
     const key = dayKey(sessionDate);
     loadByDay.set(key, (loadByDay.get(key) ?? 0) + sessionLoad(session));
+  }
+  for (const activity of activities) {
+    const activityDate = new Date(activity.date);
+    if (!earliestSessionDate || activityDate < earliestSessionDate) earliestSessionDate = activityDate;
+    if (!lastRatedAt || activity.date > lastRatedAt) lastRatedAt = activity.date;
+
+    const key = dayKey(activityDate);
+    loadByDay.set(key, (loadByDay.get(key) ?? 0) + activityLoad(activity));
   }
 
   const days: DayLoad[] = [];

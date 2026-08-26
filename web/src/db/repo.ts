@@ -6,6 +6,7 @@ import type { Routine, RoutineExerciseEntry } from "../types/routine";
 import type { Profile } from "../types/profile";
 import type { ExercisePerformance, SetEntry, WorkoutSession } from "../types/workoutSession";
 import type { MuscleGroup } from "../types/muscleGroup";
+import type { Activity, ActivityType } from "../types/activity";
 import { nextTarget } from "../domain/progression";
 import { groupTogether } from "../domain/superset";
 
@@ -462,4 +463,26 @@ export function sessionMuscleSummary(detail: SessionDetail): MuscleGroup[] {
     }
   }
   return [...counts.entries()].sort((a, b) => b[1] - a[1]).map(([muscle]) => muscle);
+}
+
+// ---- Activities ----
+
+export async function listActivityTypes(): Promise<ActivityType[]> {
+  return db.activityTypes.orderBy("name").toArray();
+}
+
+export async function logActivity(activityTypeId: string, durationMinutes: number, effort: number): Promise<Activity> {
+  const activity: Activity = {
+    id: newId(),
+    activityTypeId,
+    date: new Date().toISOString(),
+    durationMinutes,
+    effort,
+  };
+  await db.activities.add(activity);
+  return activity;
+}
+
+export async function deleteActivity(id: string): Promise<void> {
+  await db.activities.delete(id);
 }

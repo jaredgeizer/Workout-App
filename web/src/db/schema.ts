@@ -5,6 +5,7 @@ import type { Gym } from "../types/gym";
 import type { Routine } from "../types/routine";
 import type { Profile } from "../types/profile";
 import type { WorkoutSession, ExercisePerformance, SetEntry } from "../types/workoutSession";
+import type { ActivityType, Activity } from "../types/activity";
 
 export class WorkoutDatabase extends Dexie {
   equipment!: EntityTable<Equipment, "id">;
@@ -15,6 +16,8 @@ export class WorkoutDatabase extends Dexie {
   sessions!: EntityTable<WorkoutSession, "id">;
   performances!: EntityTable<ExercisePerformance, "id">;
   sets!: EntityTable<SetEntry, "id">;
+  activityTypes!: EntityTable<ActivityType, "id">;
+  activities!: EntityTable<Activity, "id">;
 
   constructor() {
     super("workout-app");
@@ -36,6 +39,11 @@ export class WorkoutDatabase extends Dexie {
 
     this.version(3).stores({
       profile: "id",
+    });
+
+    this.version(4).stores({
+      activityTypes: "id, name",
+      activities: "id, date, activityTypeId",
     });
   }
 }

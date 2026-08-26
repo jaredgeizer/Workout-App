@@ -113,10 +113,19 @@ export interface MuscleFreshness {
   freshnessScore: number;
 }
 
+/** A muscle's most recent trained event, whichever kind won — a workout session (via one of
+ * its exercises) or a logged activity (e.g. a run). Only the winner's own load matters for
+ * that muscle's freshness, exactly as only the winning session mattered before activities
+ * existed. */
+type TrainedEvent =
+  | { date: string; kind: "session"; sessionId: string }
+  | { date: string; kind: "activity"; activityId: string };
+
 /**
- * Scans completed session history for the most recent date each muscle was trained as an
- * exercise's primary or secondary mover, and derives a freshness score from that plus the
- * recovery window.
+ * Scans completed session history and logged activities for the most recent date each muscle
+ * was trained — as an exercise's primary/secondary mover, or via a logged activity's own
+ * muscle mapping (e.g. Running -> quadriceps/hamstrings/calves) — and derives a freshness
+ * score from whichever source won plus the recovery window.
  */
 export async function computeMuscleFreshness(): Promise<MuscleFreshness[]> {
   const sessions = await db.sessions.toArray();
@@ -129,7 +138,12 @@ export async function computeMuscleFreshness(): Promise<MuscleFreshness[]> {
   const exercises = await db.exercises.bulkGet([...new Set(relevantPerformances.map((p) => p.exerciseId))]);
   const exerciseById = new Map(exercises.filter((e) => !!e).map((e) => [e.id, e]));
 
-  const lastTrainedBy = new Map<MuscleGroup, { date: string; sessionId: string }>();
+  const activities = await db.activities.toArray();
+  const activityById = new Map(activities.map((a) => [a.id, a]));
+  const activityTypes = await db.activityTypes.bulkGet([...new Set(activities.map((a) => a.activityTypeId))]);
+  const activityTypeById = new Map(activityTypes.filter((t) => !!t).map((t) => [t.id, t]));
+
+  const lastTrainedBy = new Map<MuscleGroup, TrainedEvent>();
   for (const performance of relevantPerformances) {
     const exercise = exerciseById.get(performance.exerciseId);
     const session = sessionById.get(performance.sessionId);
@@ -138,14 +152,27 @@ export async function computeMuscleFreshness(): Promise<MuscleFreshness[]> {
     for (const muscle of [...exercise.primaryMuscles, ...exercise.secondaryMuscles]) {
       const existing = lastTrainedBy.get(muscle);
       if (!existing || session.date > existing.date) {
-        lastTrainedBy.set(muscle, { date: session.date, sessionId: session.id });
+        lastTrainedBy.set(muscle, { date: session.date, kind: "session", sessionId: session.id });
+      }
+    }
+  }
+  for (const activity of activities) {
+    const activityType = activityTypeById.get(activity.activityTypeId);
+    if (!activityType) continue;
+
+    for (const muscle of [...activityType.primaryMuscles, ...activityType.secondaryMuscles]) {
+      const existing = lastTrainedBy.get(muscle);
+      if (!existing || activity.date > existing.date) {
+        lastTrainedBy.set(muscle, { date: activity.date, kind: "activity", activityId: activity.id });
       }
     }
   }
 
   // Only the performances that actually belong to some muscle's winning session matter from
   // here on — no need to load set data for the rest of history.
-  const winningSessionIds = new Set([...lastTrainedBy.values()].map((v) => v.sessionId));
+  const winningSessionIds = new Set(
+    [...lastTrainedBy.values()].filter((v) => v.kind === "session").map((v) => v.sessionId),
+  );
   const winningPerformances = relevantPerformances.filter((p) => winningSessionIds.has(p.sessionId));
 
   // For each winning performance, find the most recent *other* completed performance of the
@@ -199,12 +226,44 @@ export async function computeMuscleFreshness(): Promise<MuscleFreshness[]> {
     const relativeFactor = relativeVolumeFactor(thisVolume, baselineVolume);
 
     for (const muscle of exercise.primaryMuscles) {
-      if (lastTrainedBy.get(muscle)?.sessionId === performance.sessionId) {
+      const winner = lastTrainedBy.get(muscle);
+      if (winner?.kind === "session" && winner.sessionId === performance.sessionId) {
         weightedHitsByMuscle.set(muscle, (weightedHitsByMuscle.get(muscle) ?? 0) + relativeFactor);
       }
     }
     for (const muscle of exercise.secondaryMuscles) {
-      if (lastTrainedBy.get(muscle)?.sessionId === performance.sessionId) {
+      const winner = lastTrainedBy.get(muscle);
+      if (winner?.kind === "session" && winner.sessionId === performance.sessionId) {
+        weightedHitsByMuscle.set(muscle, (weightedHitsByMuscle.get(muscle) ?? 0) + SECONDARY_MOVER_WEIGHT * relativeFactor);
+      }
+    }
+  }
+
+  // Same idea for activity-sourced winners: an activity's own "volume" proxy is its duration
+  // (weight-neutral, like a bodyweight set), compared against your most recent prior instance
+  // of that same activity type.
+  const winningActivityIds = new Set(
+    [...lastTrainedBy.values()].filter((v) => v.kind === "activity").map((v) => v.activityId),
+  );
+  const winningActivities = activities.filter((a) => winningActivityIds.has(a.id));
+  for (const activity of winningActivities) {
+    const activityType = activityTypeById.get(activity.activityTypeId);
+    if (!activityType) continue;
+
+    const previousActivity = activities
+      .filter((other) => other.activityTypeId === activity.activityTypeId && other.date < activity.date)
+      .sort((a, b) => b.date.localeCompare(a.date))[0];
+    const relativeFactor = relativeVolumeFactor(activity.durationMinutes, previousActivity?.durationMinutes ?? 0);
+
+    for (const muscle of activityType.primaryMuscles) {
+      const winner = lastTrainedBy.get(muscle);
+      if (winner?.kind === "activity" && winner.activityId === activity.id) {
+        weightedHitsByMuscle.set(muscle, (weightedHitsByMuscle.get(muscle) ?? 0) + relativeFactor);
+      }
+    }
+    for (const muscle of activityType.secondaryMuscles) {
+      const winner = lastTrainedBy.get(muscle);
+      if (winner?.kind === "activity" && winner.activityId === activity.id) {
         weightedHitsByMuscle.set(muscle, (weightedHitsByMuscle.get(muscle) ?? 0) + SECONDARY_MOVER_WEIGHT * relativeFactor);
       }
     }
@@ -220,7 +279,10 @@ export async function computeMuscleFreshness(): Promise<MuscleFreshness[]> {
       return { muscle, lastTrainedAt: null, freshnessScore: 1 };
     }
     const hoursSince = (now - new Date(lastTrained.date).getTime()) / (1000 * 60 * 60);
-    const effort = sessionById.get(lastTrained.sessionId)?.effort;
+    const effort =
+      lastTrained.kind === "session"
+        ? sessionById.get(lastTrained.sessionId)?.effort
+        : activityById.get(lastTrained.activityId)?.effort;
     const recoveryWindow = MUSCLE_RECOVERY_HOURS[muscle] * ageMultiplier * effortRecoveryMultiplier(effort);
     const initialFreshness = initialFreshnessAfterSession(effort, weightedHitsByMuscle.get(muscle) ?? 1);
     const freshnessScore = initialFreshness + (1 - initialFreshness) * (hoursSince / recoveryWindow);
