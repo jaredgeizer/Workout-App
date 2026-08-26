@@ -50,9 +50,15 @@ export function effortRecoveryMultiplier(effort: number | undefined): number {
   return 1 + (effort - 5) * EFFORT_RECOVERY_STEP_PER_POINT;
 }
 
-/** A single exercise at max effort (10) fatigues a muscle this much; scales down linearly
- * with effort and stacks per exercise that hit the muscle as a primary mover in the session. */
+/** A single exercise at max effort (10) fatigues a muscle this much when it's the primary
+ * mover; scales down linearly with effort and stacks per exercise that hits the muscle in
+ * the session. A secondary-mover hit counts for `SECONDARY_MOVER_WEIGHT` of one of these. */
 export const PER_HIT_FATIGUE_AT_MAX_EFFORT = 2 / 3;
+
+/** A secondary-mover hit (e.g. triceps on a chest-primary Push Up) fatigues a muscle this
+ * fraction of what a primary-mover hit would — real work, but clearly less than the prime
+ * mover's. Rough heuristic, same spirit as the other constants here. */
+export const SECONDARY_MOVER_WEIGHT = 0.4;
 
 /** However much volume/effort a session piles on, a muscle is never driven below this much
  * fresh immediately afterward — an all-out session shouldn't read the same as an injury. */
@@ -60,13 +66,14 @@ export const MAX_SESSION_FATIGUE = 0.8;
 
 /**
  * How fresh a muscle reads the instant a session ends: 1 minus accumulated fatigue from every
- * exercise in that session that used it as a primary mover, each scaled by the session's effort
- * and capped so it never bottoms out completely. Rough heuristic, tuned from a couple of
- * examples rather than real data — expect to retune the constants above as more sessions land.
+ * exercise in that session that used it as a primary or secondary mover (weighted — see
+ * `weightedHits`), scaled by the session's effort and capped so it never bottoms out
+ * completely. Rough heuristic, tuned from a couple of examples rather than real data — expect
+ * to retune the constants above as more sessions land.
  */
-export function initialFreshnessAfterSession(effort: number | undefined, primaryMoverHits: number): number {
+export function initialFreshnessAfterSession(effort: number | undefined, weightedHits: number): number {
   const effectiveEffort = effort ?? 5;
-  const fatigue = Math.min(MAX_SESSION_FATIGUE, primaryMoverHits * (effectiveEffort / 10) * PER_HIT_FATIGUE_AT_MAX_EFFORT);
+  const fatigue = Math.min(MAX_SESSION_FATIGUE, weightedHits * (effectiveEffort / 10) * PER_HIT_FATIGUE_AT_MAX_EFFORT);
   return 1 - fatigue;
 }
 
@@ -84,7 +91,8 @@ export interface MuscleFreshness {
 
 /**
  * Scans completed session history for the most recent date each muscle was trained as an
- * exercise's primary mover, and derives a freshness score from that plus the recovery window.
+ * exercise's primary or secondary mover, and derives a freshness score from that plus the
+ * recovery window.
  */
 export async function computeMuscleFreshness(): Promise<MuscleFreshness[]> {
   const sessions = await db.sessions.toArray();
@@ -103,7 +111,7 @@ export async function computeMuscleFreshness(): Promise<MuscleFreshness[]> {
     const session = sessionById.get(performance.sessionId);
     if (!exercise || !session) continue;
 
-    for (const muscle of exercise.primaryMuscles) {
+    for (const muscle of [...exercise.primaryMuscles, ...exercise.secondaryMuscles]) {
       const existing = lastTrainedBy.get(muscle);
       if (!existing || session.date > existing.date) {
         lastTrainedBy.set(muscle, { date: session.date, sessionId: session.id });
@@ -111,15 +119,22 @@ export async function computeMuscleFreshness(): Promise<MuscleFreshness[]> {
     }
   }
 
-  // How many primary-mover hits each muscle got within its own most-recent session (not across
-  // all history) — e.g. two leg exercises in the same workout fatigue quads more than one does.
-  const primaryMoverHitsByMuscle = new Map<MuscleGroup, number>();
+  // How much weighted "hit" each muscle got within its own most-recent session (not across all
+  // history) — primary movers count fully, secondary movers count for less (e.g. two leg
+  // exercises in the same workout fatigue quads more than one does; triceps still gets some
+  // fatigue from a chest-primary Push Up, just less than chest does).
+  const weightedHitsByMuscle = new Map<MuscleGroup, number>();
   for (const performance of relevantPerformances) {
     const exercise = exerciseById.get(performance.exerciseId);
     if (!exercise) continue;
     for (const muscle of exercise.primaryMuscles) {
       if (lastTrainedBy.get(muscle)?.sessionId === performance.sessionId) {
-        primaryMoverHitsByMuscle.set(muscle, (primaryMoverHitsByMuscle.get(muscle) ?? 0) + 1);
+        weightedHitsByMuscle.set(muscle, (weightedHitsByMuscle.get(muscle) ?? 0) + 1);
+      }
+    }
+    for (const muscle of exercise.secondaryMuscles) {
+      if (lastTrainedBy.get(muscle)?.sessionId === performance.sessionId) {
+        weightedHitsByMuscle.set(muscle, (weightedHitsByMuscle.get(muscle) ?? 0) + SECONDARY_MOVER_WEIGHT);
       }
     }
   }
@@ -136,7 +151,7 @@ export async function computeMuscleFreshness(): Promise<MuscleFreshness[]> {
     const hoursSince = (now - new Date(lastTrained.date).getTime()) / (1000 * 60 * 60);
     const effort = sessionById.get(lastTrained.sessionId)?.effort;
     const recoveryWindow = MUSCLE_RECOVERY_HOURS[muscle] * ageMultiplier * effortRecoveryMultiplier(effort);
-    const initialFreshness = initialFreshnessAfterSession(effort, primaryMoverHitsByMuscle.get(muscle) ?? 1);
+    const initialFreshness = initialFreshnessAfterSession(effort, weightedHitsByMuscle.get(muscle) ?? 1);
     const freshnessScore = initialFreshness + (1 - initialFreshness) * (hoursSince / recoveryWindow);
     return { muscle, lastTrainedAt: lastTrained.date, freshnessScore };
   });
