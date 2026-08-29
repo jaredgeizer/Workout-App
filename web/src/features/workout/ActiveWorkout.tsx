@@ -10,8 +10,10 @@ import {
   loadSessionDetail,
   makeSuperset,
   reorderPerformances,
+  removeSet,
   swapExerciseInPerformance,
   updateSet,
+  updateSetWithCascade,
   type PerformanceDetail,
 } from "../../db/repo";
 import { blockRange, moveBlock, moveWithinGroup } from "../../domain/reorder";
@@ -135,6 +137,11 @@ export function ActiveWorkout({ sessionId, onDone }: Props) {
 
   async function handleUndoSet(set: SetEntry) {
     await updateSet(set.id, { isCompleted: false });
+  }
+
+  async function handleRemoveSet(set: SetEntry) {
+    if (set.isCompleted && !confirm("Remove this logged set?")) return;
+    await removeSet(set.id);
   }
 
   async function handleAddSet(performanceId: string) {
@@ -306,6 +313,7 @@ export function ActiveWorkout({ sessionId, onDone }: Props) {
                           isHoldMode={isHoldMode}
                           canAct={canAct}
                           onUndo={() => void handleUndoSet(set)}
+                          onRemove={() => void handleRemoveSet(set)}
                           onLogHold={(holdSeconds) => void logSet(block.groupId ? block.members : undefined, p, set, { holdSeconds })}
                         />
                       );
@@ -440,6 +448,7 @@ function SetRow({
   isHoldMode,
   canAct,
   onUndo,
+  onRemove,
   onLogHold,
 }: {
   set: SetEntry;
@@ -447,6 +456,7 @@ function SetRow({
   isHoldMode: boolean;
   canAct: boolean;
   onUndo: () => void;
+  onRemove: () => void;
   onLogHold: (holdSeconds: number) => void;
 }) {
   return (
@@ -456,7 +466,7 @@ function SetRow({
         inputMode="decimal"
         value={set.weight === 0 ? "" : set.weight}
         placeholder="0"
-        onChange={(e) => void updateSet(set.id, { weight: Number(e.target.value) || 0 })}
+        onChange={(e) => void updateSetWithCascade(set.id, { weight: Number(e.target.value) || 0 })}
         className="w-16 rounded-lg bg-slate-900 px-2 py-1.5 text-center text-slate-100 outline-none ring-1 ring-slate-700 focus:ring-sky-500"
       />
       <span className="text-xs text-slate-500">lb</span>
@@ -477,7 +487,7 @@ function SetRow({
             inputMode="numeric"
             value={set.reps === 0 ? "" : set.reps}
             placeholder="0"
-            onChange={(e) => void updateSet(set.id, { reps: Number(e.target.value) || 0 })}
+            onChange={(e) => void updateSetWithCascade(set.id, { reps: Number(e.target.value) || 0 })}
             className="w-14 rounded-lg bg-slate-900 px-2 py-1.5 text-center text-slate-100 outline-none ring-1 ring-slate-700 focus:ring-sky-500"
           />
           <span className="text-xs text-slate-500">reps</span>
@@ -495,6 +505,9 @@ function SetRow({
       ) : (
         <span className="ml-auto w-8" />
       )}
+      <button onClick={onRemove} aria-label="Remove set" className="text-slate-500 active:text-red-400">
+        ✕
+      </button>
     </div>
   );
 }

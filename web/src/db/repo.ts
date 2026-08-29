@@ -194,6 +194,44 @@ export async function swapExerciseInPerformance(performanceId: string, newExerci
   });
 }
 
+/** Removes a set, renumbering later sets in the same performance down by one so `setNumber`
+ * stays contiguous — the same invariant `addSetToPerformance` relies on when appending. */
+export async function removeSet(setId: string): Promise<void> {
+  const set = await db.sets.get(setId);
+  if (!set) return;
+  const laterSets = await db.sets
+    .where("performanceId")
+    .equals(set.performanceId)
+    .filter((s) => s.setNumber > set.setNumber)
+    .toArray();
+
+  await db.transaction("rw", db.sets, async () => {
+    await db.sets.delete(setId);
+    await Promise.all(laterSets.map((s) => db.sets.update(s.id, { setNumber: s.setNumber - 1 })));
+  });
+}
+
+/** Same write as `updateSet`, but also pushes the new weight/reps onto every later set in this
+ * performance that hasn't been logged yet — so bumping set 1's weight updates the still-to-do
+ * sets 2/3 too, without ever touching a set you've already completed. */
+export async function updateSetWithCascade(
+  setId: string,
+  changes: Partial<Pick<SetEntry, "weight" | "reps">>,
+): Promise<void> {
+  const set = await db.sets.get(setId);
+  if (!set) return;
+  const laterUncompleted = await db.sets
+    .where("performanceId")
+    .equals(set.performanceId)
+    .filter((s) => s.setNumber > set.setNumber && !s.isCompleted)
+    .toArray();
+
+  await db.transaction("rw", db.sets, async () => {
+    await db.sets.update(setId, changes);
+    await Promise.all(laterUncompleted.map((s) => db.sets.update(s.id, changes)));
+  });
+}
+
 /** Appends one more set to an in-progress exercise, pre-filled from the current last set. */
 export async function addSetToPerformance(performanceId: string): Promise<void> {
   const sets = await db.sets.where("performanceId").equals(performanceId).toArray();
