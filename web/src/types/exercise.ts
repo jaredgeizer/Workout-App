@@ -18,10 +18,6 @@ export interface Exercise {
   mediaUrl?: string;
 }
 
-export function exerciseAllMuscles(exercise: Exercise): MuscleGroup[] {
-  return [...exercise.primaryMuscles, ...exercise.secondaryMuscles];
-}
-
 /** True if every piece of equipment this exercise requires is present in the given set. */
 export function isExerciseAvailable(exercise: Exercise, availableEquipmentIds: Set<string>): boolean {
   return exercise.equipmentIds.length === 0 || exercise.equipmentIds.every((id) => availableEquipmentIds.has(id));

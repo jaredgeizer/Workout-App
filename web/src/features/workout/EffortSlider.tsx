@@ -1,4 +1,4 @@
-export const EFFORT_WORDS: Record<number, string> = {
+const EFFORT_WORDS: Record<number, string> = {
   1: "Very Easy",
   2: "Easy",
   3: "Easy",
