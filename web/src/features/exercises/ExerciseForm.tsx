@@ -1,7 +1,8 @@
 import { useMemo, useState } from "react";
 import { useLiveQuery } from "dexie-react-hooks";
 import { db } from "../../db/schema";
-import { addCustomEquipment, createCustomExercise } from "../../db/repo";
+import { addCustomEquipment, createCustomExercise, updateExercise } from "../../db/repo";
+import type { Exercise } from "../../types/exercise";
 import { EXERCISE_CATEGORIES, type ExerciseCategory } from "../../types/exercise";
 import { EQUIPMENT_CATEGORIES, equipmentCategoryDisplayName } from "../../types/equipment";
 import { MUSCLE_GROUPS, muscleDisplayName, type MuscleGroup } from "../../types/muscleGroup";
@@ -13,6 +14,7 @@ const CATEGORY_LABELS: Record<ExerciseCategory, string> = {
 };
 
 interface Props {
+  initialExercise?: Exercise;
   onDone: () => void;
 }
 
@@ -23,15 +25,17 @@ function toggle<T>(set: Set<T>, value: T): Set<T> {
   return next;
 }
 
-export function ExerciseCreateForm({ onDone }: Props) {
+export function ExerciseForm({ initialExercise, onDone }: Props) {
+  const isEditing = !!initialExercise;
   const allEquipment = useLiveQuery(() => db.equipment.orderBy("name").toArray(), []) ?? [];
-  const [name, setName] = useState("");
-  const [category, setCategory] = useState<ExerciseCategory>("compound");
-  const [primaryMuscles, setPrimaryMuscles] = useState<Set<MuscleGroup>>(new Set());
-  const [secondaryMuscles, setSecondaryMuscles] = useState<Set<MuscleGroup>>(new Set());
-  const [equipmentIds, setEquipmentIds] = useState<Set<string>>(new Set());
-  const [isHold, setIsHold] = useState(false);
-  const [instructions, setInstructions] = useState("");
+  const [name, setName] = useState(initialExercise?.name ?? "");
+  const [category, setCategory] = useState<ExerciseCategory>(initialExercise?.category ?? "compound");
+  const [primaryMuscles, setPrimaryMuscles] = useState<Set<MuscleGroup>>(new Set(initialExercise?.primaryMuscles ?? []));
+  const [secondaryMuscles, setSecondaryMuscles] = useState<Set<MuscleGroup>>(new Set(initialExercise?.secondaryMuscles ?? []));
+  const [equipmentIds, setEquipmentIds] = useState<Set<string>>(new Set(initialExercise?.equipmentIds ?? []));
+  const [isHold, setIsHold] = useState(initialExercise?.defaultLogMode === "hold");
+  const [instructions, setInstructions] = useState(initialExercise?.instructions ?? "");
+  const [linkUrl, setLinkUrl] = useState(initialExercise?.linkUrl ?? "");
   const [isAddingEquipment, setIsAddingEquipment] = useState(false);
   const [newEquipmentName, setNewEquipmentName] = useState("");
   const [isSaving, setIsSaving] = useState(false);
@@ -57,22 +61,28 @@ export function ExerciseCreateForm({ onDone }: Props) {
   async function handleSave() {
     if (!canSave) return;
     setIsSaving(true);
-    await createCustomExercise({
+    const fields = {
       name: name.trim(),
       primaryMuscles: [...primaryMuscles],
       secondaryMuscles: [...secondaryMuscles],
       category,
       equipmentIds: [...equipmentIds],
-      defaultLogMode: isHold ? "hold" : undefined,
+      defaultLogMode: isHold ? ("hold" as const) : undefined,
       instructions: instructions.trim() || undefined,
-    });
+      linkUrl: linkUrl.trim() || undefined,
+    };
+    if (initialExercise) {
+      await updateExercise(initialExercise.id, fields);
+    } else {
+      await createCustomExercise(fields);
+    }
     onDone();
   }
 
   return (
     <div className="fixed inset-0 z-50 flex flex-col bg-slate-900">
       <div className="flex items-center justify-between border-b border-slate-800 p-4">
-        <h2 className="text-lg font-semibold text-slate-100">Add Exercise</h2>
+        <h2 className="text-lg font-semibold text-slate-100">{isEditing ? "Edit Exercise" : "Add Exercise"}</h2>
         <button onClick={onDone} className="text-sm font-medium text-slate-400 active:text-slate-200">
           Cancel
         </button>
@@ -202,13 +212,24 @@ export function ExerciseCreateForm({ onDone }: Props) {
 
         <div>
           <label className="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-500">
-            Instructions (optional)
+            Instructions (optional, one step per line)
           </label>
           <textarea
             value={instructions}
             onChange={(e) => setInstructions(e.target.value)}
-            rows={3}
-            placeholder="How to perform this exercise"
+            rows={4}
+            placeholder={"• Step one\n• Step two\n• Step three"}
+            className="w-full rounded-lg bg-slate-800 px-3 py-2 text-slate-100 outline-none ring-1 ring-slate-700 focus:ring-sky-500"
+          />
+        </div>
+
+        <div>
+          <label className="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-500">Link (optional)</label>
+          <input
+            type="url"
+            value={linkUrl}
+            onChange={(e) => setLinkUrl(e.target.value)}
+            placeholder="https://..."
             className="w-full rounded-lg bg-slate-800 px-3 py-2 text-slate-100 outline-none ring-1 ring-slate-700 focus:ring-sky-500"
           />
         </div>
@@ -220,7 +241,7 @@ export function ExerciseCreateForm({ onDone }: Props) {
           disabled={!canSave || isSaving}
           className="w-full rounded-xl bg-sky-500 py-4 text-lg font-semibold text-slate-950 active:bg-sky-400 disabled:bg-slate-700 disabled:text-slate-500"
         >
-          Save Exercise
+          {isEditing ? "Save Changes" : "Save Exercise"}
         </button>
       </div>
     </div>

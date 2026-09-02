@@ -16,6 +16,8 @@ export interface Exercise {
   defaultLogMode?: "hold";
   /** Path under /exercises/ to a still image or GIF showing the movement, e.g. "exercises/push-up.jpg". */
   mediaUrl?: string;
+  /** Optional external link (e.g. a demo video) — not every exercise has one. */
+  linkUrl?: string;
 }
 
 /** True if every piece of equipment this exercise requires is present in the given set. */
