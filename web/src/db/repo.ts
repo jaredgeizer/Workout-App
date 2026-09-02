@@ -1,6 +1,6 @@
 import { db, newId } from "./schema";
 import type { Equipment, EquipmentCategory } from "../types/equipment";
-import type { Exercise } from "../types/exercise";
+import type { Exercise, ExerciseCategory } from "../types/exercise";
 import type { Gym } from "../types/gym";
 import type { Routine, RoutineExerciseEntry } from "../types/routine";
 import type { Profile } from "../types/profile";
@@ -28,6 +28,22 @@ export async function addCustomEquipment(name: string, category: EquipmentCatego
   const equipment: Equipment = { id: newId(), name, category, isCustom: true };
   await db.equipment.add(equipment);
   return equipment;
+}
+
+// ---- Custom Exercises ----
+
+export async function createCustomExercise(input: {
+  name: string;
+  primaryMuscles: MuscleGroup[];
+  secondaryMuscles: MuscleGroup[];
+  category: ExerciseCategory;
+  equipmentIds: string[];
+  defaultLogMode?: "hold";
+  instructions?: string;
+}): Promise<Exercise> {
+  const exercise: Exercise = { id: newId(), isCustom: true, ...input };
+  await db.exercises.add(exercise);
+  return exercise;
 }
 
 // ---- Gyms ----
