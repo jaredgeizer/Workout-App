@@ -1,10 +1,9 @@
-export type TabKey = "workout" | "routines" | "body" | "gyms" | "log";
+export type TabKey = "workout" | "routines" | "body" | "log";
 
 const TABS: { key: TabKey; label: string; icon: string }[] = [
   { key: "workout", label: "Workout", icon: "🏋️" },
   { key: "routines", label: "Routines", icon: "📋" },
   { key: "body", label: "Body", icon: "🫀" },
-  { key: "gyms", label: "Gyms", icon: "🏢" },
   { key: "log", label: "Log", icon: "📅" },
 ];
 
