@@ -5,13 +5,14 @@ import type { Exercise } from "../../types/exercise";
 import { muscleDisplayName } from "../../types/muscleGroup";
 import { ExerciseThumbnail } from "../workout/ExerciseThumbnail";
 import { ExerciseDetailModal } from "../workout/ExerciseDetailModal";
-import { ExerciseCreateForm } from "./ExerciseCreateForm";
+import { ExerciseForm } from "./ExerciseForm";
 
 export function ExerciseLibrarySection() {
   const allExercises = useLiveQuery(() => db.exercises.orderBy("name").toArray(), []) ?? [];
   const [search, setSearch] = useState("");
   const [detailExercise, setDetailExercise] = useState<Exercise | null>(null);
   const [isCreating, setIsCreating] = useState(false);
+  const [editingExercise, setEditingExercise] = useState<Exercise | null>(null);
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -64,8 +65,18 @@ export function ExerciseLibrarySection() {
         {filtered.length === 0 && <p className="mt-8 text-center text-slate-500">No exercises match.</p>}
       </ul>
 
-      {detailExercise && <ExerciseDetailModal exercise={detailExercise} onClose={() => setDetailExercise(null)} />}
-      {isCreating && <ExerciseCreateForm onDone={() => setIsCreating(false)} />}
+      {detailExercise && (
+        <ExerciseDetailModal
+          exercise={detailExercise}
+          onClose={() => setDetailExercise(null)}
+          onEdit={() => {
+            setEditingExercise(detailExercise);
+            setDetailExercise(null);
+          }}
+        />
+      )}
+      {isCreating && <ExerciseForm onDone={() => setIsCreating(false)} />}
+      {editingExercise && <ExerciseForm initialExercise={editingExercise} onDone={() => setEditingExercise(null)} />}
     </div>
   );
 }

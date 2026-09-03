@@ -46,6 +46,18 @@ export async function createCustomExercise(input: {
   return exercise;
 }
 
+export async function updateExercise(
+  id: string,
+  changes: Partial<
+    Pick<
+      Exercise,
+      "name" | "primaryMuscles" | "secondaryMuscles" | "category" | "equipmentIds" | "defaultLogMode" | "instructions" | "linkUrl"
+    >
+  >,
+): Promise<void> {
+  await db.exercises.update(id, changes);
+}
+
 // ---- Gyms ----
 
 export async function createGym(name: string): Promise<Gym> {
@@ -418,6 +430,10 @@ export async function setRoutineSmartAdjust(routineId: string, smartAdjustEnable
 
 export async function setRoutineRestSeconds(routineId: string, restSeconds: number): Promise<void> {
   await db.routines.update(routineId, { restSeconds });
+}
+
+export async function setRoutineLink(routineId: string, linkUrl: string | undefined): Promise<void> {
+  await db.routines.update(routineId, { linkUrl });
 }
 
 export async function updateRoutineExercises(routineId: string, exercises: RoutineExerciseEntry[]): Promise<void> {

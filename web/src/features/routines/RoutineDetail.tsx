@@ -6,6 +6,7 @@ import type { Exercise } from "../../types/exercise";
 import {
   DEFAULT_REST_SECONDS,
   renameRoutine,
+  setRoutineLink,
   setRoutineRestSeconds,
   setRoutineSmartAdjust,
   updateRoutineExercises,
@@ -187,6 +188,29 @@ export function RoutineDetail({ routineId, onBack, onStart }: Props) {
           onChange={(e) => void setRoutineRestSeconds(routineId, Number(e.target.value) || DEFAULT_REST_SECONDS)}
           className="w-full rounded-lg bg-slate-900 px-3 py-2 text-slate-100 outline-none ring-1 ring-slate-700 focus:ring-sky-500"
         />
+      </div>
+
+      <div className="rounded-xl bg-slate-800 px-4 py-3">
+        <label className="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-500">Link (optional)</label>
+        <div className="flex gap-2">
+          <input
+            type="url"
+            value={routine.linkUrl ?? ""}
+            onChange={(e) => void setRoutineLink(routineId, e.target.value || undefined)}
+            placeholder="https://..."
+            className="flex-1 rounded-lg bg-slate-900 px-3 py-2 text-slate-100 outline-none ring-1 ring-slate-700 focus:ring-sky-500"
+          />
+          {routine.linkUrl && (
+            <a
+              href={routine.linkUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center rounded-lg bg-slate-900 px-3 text-sm font-medium text-sky-400 active:text-sky-300"
+            >
+              ↗ Open
+            </a>
+          )}
+        </div>
       </div>
 
       <button

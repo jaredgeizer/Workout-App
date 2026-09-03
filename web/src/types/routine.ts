@@ -18,4 +18,5 @@ export interface Routine {
   smartAdjustEnabled: boolean;
   exercises: RoutineExerciseEntry[];
   restSeconds?: number; // undefined = default rest time (see DEFAULT_REST_SECONDS)
+  linkUrl?: string; // optional external link (e.g. a workout video/article this routine follows)
 }

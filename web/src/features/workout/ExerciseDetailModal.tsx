@@ -4,16 +4,24 @@ import { muscleDisplayName } from "../../types/muscleGroup";
 interface Props {
   exercise: Exercise;
   onClose: () => void;
+  onEdit?: () => void;
 }
 
-export function ExerciseDetailModal({ exercise, onClose }: Props) {
+export function ExerciseDetailModal({ exercise, onClose, onEdit }: Props) {
   return (
     <div className="fixed inset-0 z-50 flex flex-col bg-slate-900">
       <div className="flex items-center justify-between border-b border-slate-800 p-4">
         <h2 className="text-lg font-semibold text-slate-100">{exercise.name}</h2>
-        <button onClick={onClose} className="text-sm font-medium text-sky-400 active:text-sky-300">
-          Close
-        </button>
+        <div className="flex items-center gap-3">
+          {onEdit && (
+            <button onClick={onEdit} className="text-sm font-medium text-sky-400 active:text-sky-300">
+              Edit
+            </button>
+          )}
+          <button onClick={onClose} className="text-sm font-medium text-sky-400 active:text-sky-300">
+            Close
+          </button>
+        </div>
       </div>
 
       <div className="flex-1 overflow-y-auto p-4">
@@ -41,6 +49,19 @@ export function ExerciseDetailModal({ exercise, onClose }: Props) {
           <div className="mt-3">
             <h3 className="text-xs font-semibold uppercase tracking-wide text-slate-500">Instructions</h3>
             <p className="whitespace-pre-line text-slate-300">{exercise.instructions}</p>
+          </div>
+        )}
+
+        {exercise.linkUrl && (
+          <div className="mt-3">
+            <a
+              href={exercise.linkUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-sm font-medium text-sky-400 active:text-sky-300"
+            >
+              🔗 View Link
+            </a>
           </div>
         )}
       </div>
